@@ -1,0 +1,278 @@
+V "GNAT Lib v15"
+A -O2
+A -fPIC
+P SS ZX
+
+RN
+RV NO_DIRECT_BOOLEAN_OPERATORS
+RV NO_EXCEPTION_HANDLERS
+RV NO_EXCEPTIONS
+RV NO_IO
+RV NO_IMPLICIT_CONDITIONALS
+RV NO_SECONDARY_STACK
+RV NO_STANDARD_STORAGE_POOLS
+RV NO_DEFAULT_INITIALIZATION
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_OBSOLESCENT_FEATURES
+
+U fuzzy%b		fuzzy.adb		1cca07a6 NE OO PK
+W ada%s			ada.ads			ada.ali
+W ada.characters%s	a-charac.ads		a-charac.ali
+W ada.characters.handling%s  a-chahan.adb	a-chahan.ali
+W ada.directories%s	a-direct.adb		a-direct.ali
+W ada.strings%s		a-string.ads		a-string.ali
+W ada.strings.fixed%s	a-strfix.adb		a-strfix.ali
+Z ada.strings.text_buffers%s  a-sttebu.adb	a-sttebu.ali
+W ada.text_io%s		a-textio.adb		a-textio.ali
+W gnat%s		gnat.ads		gnat.ali
+W gnat.os_lib%s		g-os_lib.ads		g-os_lib.ali
+W system%s		system.ads		system.ali
+W system.address_to_access_conversions%s
+Z system.img_int%s	s-imgint.ads		s-imgint.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+
+U fuzzy%s		fuzzy.ads		64d8ad41 EE NE OO PK
+W interfaces%s		interfac.ads		interfac.ali
+W interfaces.c%s	i-c.adb			i-c.ali
+W interfaces.c.strings%s  i-cstrin.adb		i-cstrin.ali
+W system%s		system.ads		system.ali
+
+D ada.ads		20251112120728 76789da1 ada%s
+D a-calend.ads		20251112120728 bf7f3cc9 ada.calendar%s
+D a-charac.ads		20251112120728 2d3ec45b ada.characters%s
+D a-chahan.ads		20251112120728 bf752ff6 ada.characters.handling%s
+D a-chlat1.ads		20251112120728 e0d72e76 ada.characters.latin_1%s
+D a-direct.ads		20251112120728 467e87a1 ada.directories%s
+D a-except.ads		20251112120728 e7970cd9 ada.exceptions%s
+D a-finali.ads		20251112120728 bf4f806b ada.finalization%s
+D a-ioexce.ads		20251112120728 40018c65 ada.io_exceptions%s
+D a-stream.ads		20251112120728 17477cbd ada.streams%s
+D a-string.ads		20251112120728 90ac6797 ada.strings%s
+D a-strfix.ads		20251112120728 8648dedb ada.strings.fixed%s
+D a-strmap.ads		20251112120728 1f91ebb6 ada.strings.maps%s
+D a-strsea.ads		20251112120728 18c3c634 ada.strings.search%s
+D a-sttebu.ads		20251112120728 f1ad67a2 ada.strings.text_buffers%s
+D a-strunb.ads		20251112120728 b10770ab ada.strings.unbounded%s
+D a-stuten.ads		20251112120728 c6ced0ae ada.strings.utf_encoding%s
+D a-tags.ads		20251112120728 fbca0ad5 ada.tags%s
+D a-textio.ads		20251112120728 34ef47de ada.text_io%s
+D a-unccon.ads		20251112120728 0e9b276f ada.unchecked_conversion%s
+D a-uncdea.ads		20251112120728 c3a8ac65 ada.unchecked_deallocation%s
+D fuzzy.ads		20260102084405 cdb59180 fuzzy%s
+D fuzzy.adb		20260102084608 cf0c01ed fuzzy%b
+D gnat.ads		20251112120728 b5988c27 gnat%s
+D g-os_lib.ads		20251112120728 0db74523 gnat.os_lib%s
+D interfac.ads		20251112120728 9111f9c1 interfaces%s
+D i-c.ads		20251112120728 e94c966a interfaces.c%s
+D i-cstrin.ads		20251112120728 5409c1a4 interfaces.c.strings%s
+D i-cstrea.ads		20251112120728 ffd01b9d interfaces.c_streams%s
+D system.ads		20251112120728 14286b0f system%s
+D s-atacco.ads		20251112120728 5868e3ba system.address_to_access_conversions%s
+D s-atocou.ads		20251112120728 dc18efc3 system.atomic_counters%s
+D s-crtl.ads		20251112120728 beb39b9e system.crtl%s
+D s-exctab.ads		20251112120728 91bef6ef system.exception_table%s
+D s-ficobl.ads		20251112120728 dc5161d4 system.file_control_block%s
+D s-finpri.ads		20251112120728 5970d55a system.finalization_primitives%s
+D s-finroo.ads		20251112120728 0a7c3ed4 system.finalization_root%s
+D s-imagei.ads		20251112120728 5e131ce0 system.image_i%s
+D s-imgint.ads		20251112120728 67e4edfb system.img_int%s
+D s-oscons.ads		20251112120728 2b1d2f1e system.os_constants%s
+D s-os_lib.ads		20251112120728 dd4133ed system.os_lib%s
+D s-oslock.ads		20251112120728 13fa6b78 system.os_locks%s
+D s-parame.ads		20251112120728 3597fc11 system.parameters%s
+D s-putima.ads		20251112120728 17291fe4 system.put_images%s
+D s-retsta.ads		20251112120728 0f6b06cb system.return_stack%s
+D s-secsta.ads		20251112120728 578279f5 system.secondary_stack%s
+D s-soflin.ads		20251112120728 5d88fdea system.soft_links%s
+D s-stache.ads		20251112120728 0b81c1fe system.stack_checking%s
+D s-stalib.ads		20251112120728 1c9580f6 system.standard_library%s
+D s-stoele.ads		20251112120728 ccded4e8 system.storage_elements%s
+D s-stratt.ads		20251112120728 516607ae system.stream_attributes%s
+D s-string.ads		20251112120728 582aac7d system.strings%s
+D s-traent.ads		20251112120728 c81cbf8c system.traceback_entries%s
+D s-unstyp.ads		20251112120728 fa2a7f59 system.unsigned_types%s
+D s-valspe.ads		20251112120728 f810d31c system.val_spec%s
+D s-vaispe.ads		20251112120728 8280550e system.value_i_spec%s
+D s-vauspe.ads		20251112120728 89269ba5 system.value_u_spec%s
+D s-vs_int.ads		20251112120728 06b6b724 system.vs_int%s
+D s-vs_uns.ads		20251112120728 e7f47a27 system.vs_uns%s
+D s-wchcon.ads		20251112120728 d9032363 system.wch_con%s
+G a e
+G c Z s s [bridge_message fuzzy 13 14 none]
+G c Z s s [bridge_prompt fuzzy 16 13 none]
+G c Z s s [bridge_buffer_create fuzzy 19 13 none]
+G c Z s s [bridge_buffer_switch fuzzy 22 13 none]
+G c Z s s [bridge_buffer_clear fuzzy 25 13 none]
+G c Z s s [bridge_buffer_insert fuzzy 28 13 none]
+G c Z s s [bridge_find_file_line fuzzy 31 13 none]
+G c Z s b [ada_fuzzy_find fuzzy 35 13 none]
+G c Z s b [ada_fuzzy_grep fuzzy 38 13 none]
+G c Z s b [fuzzy_match fuzzy 42 13 none]
+G c Z s b [fuzzy_score fuzzy 43 13 none]
+G c Z b b [message fuzzy 16 14 none]
+G c Z b b [exec_cmd fuzzy 76 13 none]
+G c Z b b [show_in_buffer fuzzy 113 14 none]
+X 1 ada.ads
+18K9*Ada 22e8 23|3r6 4r6 5r6 6r6 11r8 12r8 80r18 93r10 93r34 94r20 95r13
+. 103r10 104r10
+X 3 a-charac.ads
+16K13*Characters 18e19 23|3r10 11r12
+X 4 a-chahan.ads
+43K24*Handling 454e28 23|3w21 11r23
+274V13*To_Lower{string} 23|29s39 30s39
+X 6 a-direct.ads
+76K13*Directories 524e20 23|6w10 104r14
+147U14*Delete_File 23|104s26
+X 11 a-string.ads
+16K13*Strings 35e16 23|4r10 12r12
+X 12 a-strfix.ads
+49K21*Fixed 1390e22 23|4w18 12r20
+X 19 a-textio.ads
+58K13*Text_IO 785e16 23|5w10 80r22 93r14 93r38 94r24 95r17 103r14
+67P9*File_Type 23|80r30
+69n23*In_File{69E9} 23|93r46
+115U14*Open 23|93s22
+131U14*Close 23|103s22
+341V13*End_Of_File{boolean} 23|94s32
+521U14*Get_Line 23|95s25
+X 22 fuzzy.ads
+8K9*Fuzzy 45l5 45e10 23|10b14 326l5 326t10
+13U14*Bridge_Message 13>30 23|19s7
+13p30 Msg{28|65P9}
+16V13*Bridge_Prompt{27|62I9} 16>28 16>48 16>65 23|173s17 282s17
+16p28 Prompt{28|65P9}
+16p48 Buf{28|65P9}
+16m65 Buflen{27|92M9}
+19V13*Bridge_Buffer_Create{30|67M9} 19>35 23|120s13
+19p35 Name{28|65P9}
+22V13*Bridge_Buffer_Switch{27|62I9} 22>35 23|127s16
+22m35 Bp{30|67M9}
+25V13*Bridge_Buffer_Clear{27|62I9} 25>34 23|128s16
+25m34 Bp{30|67M9}
+28V13*Bridge_Buffer_Insert{27|62I9} 28>35 28>53 23|143s25
+28p35 Text{28|65P9}
+28m53 Len{27|92M9}
+31V13*Bridge_Find_File_Line{27|62I9} 31>36 31>54 23|254s22
+31p36 Path{28|65P9}
+31i54 Line{27|62I9}
+35V13*Ada_Fuzzy_Find{27|62I9} 35>29 35>32 23|153b13 265l8 265t22
+35i29 F{27|62I9} 23|153b29
+35i32 N{27|62I9} 23|153b32
+38V13*Ada_Fuzzy_Grep{27|62I9} 38>29 38>32 23|268b13 324l8 324t22
+38i29 F{27|62I9} 23|268b29
+38i32 N{27|62I9} 23|268b32
+42V13*Fuzzy_Match{natural} 42>26 42>35 23|66b13 73l8 73t19
+42a26 Pattern{string} 23|66b26 68r23
+42a35 Str{string} 23|66b35 68r32
+43V13*Fuzzy_Score{natural} 43>26 43>35 23|24b13 63l8 63t19 68s10 218s25
+43a26 Pattern{string} 23|24b26 26r31 29r49 32r10 36r24 58r20
+43a35 Str{string} 23|24b35 27r31 30r49 36r52 43r26 44r16 45r16 46r16
+X 23 fuzzy.adb
+16U14 Message 16b14 16>23 21l8 21t15 178s10 194s10 244s10 256s13 261s10 287s10
+. 303s10 315s13 320s10
+16a23 Msg{string} 17r40
+17p7 C_Msg{28|65P9} 19r23 20m13 20r13
+25i7 Score{natural} 38m13 38r22 40m13 40r22 48m16 48r25 59r17
+26i7 Pat_Idx{natural} 36r13 37r24 51m13 51r24 58r10
+27i7 Str_Idx{natural} 36r41 37r46 43r16 44r21 45r21 46r21 55m10 55r21
+28i7 Consecutive{natural} 39m13 39r28 40r30 53m13
+29a7 Pat_Lower{string} 37r13
+30a7 Str_Lower{string} 37r35
+76V13 Exec_Cmd{string} 76b13 76>23 110l8 110t16 200s35 312s35
+76a23 Cmd{string} 78r37
+77a7 Tmp_File{string} 78r51 93r55 104r39
+78a7 Full_Cmd=78:60{string} 88r70
+79a7 Result{string} 96r33 97m16 99m16 109r14
+80p7 File{19|67P9} 93m28 93r28 94r45 95r35 103m29 103r29
+81i7 Last{natural} 96r16 97r24 97r36 98m16 98r24 99r24 100m16 100r24 109r27
+82a7 Line{string} 95m41 97r51
+83i7 Len{natural} 95m47 96r23 97r43 97r62 98r31
+84p7 Args{41|754P12} 88m7 89r37 90m25 90r25
+85b7 Success{boolean} 89m47
+113U14 Show_In_Buffer 113b14 113>30 113>40 150l8 150t22 260s10 319s10
+113a30 Buf_Name{string} 114r42
+113a40 Content{string} 131r12 132r18 134r21 134r43 140r42
+114p7 C_Name{28|65P9} 120r35 121m13 121r13
+115p7 C_Text{28|65P9} 142m16 143r47 144m22 144r22
+116m7 Bp{30|67M9} 120m7 123r10 127r38 128r37
+117i7 Dummy{27|62I9} 127m7 128m7 143m16
+118i7 I{natural} 131m7 132r13 133r15 138r17 140r51 148m10
+118i10 J{natural} 133m10 134r16 134r52 135m13 135r18 138r13 140r56 148r15
+140a16 Line=140:63{string} 142r38 143r63
+154a7 Pattern_Buf{27|124A9} 172r36
+155p7 C_Prompt{28|65P9} 173r32 174m13 174r13
+156p7 C_Pattern{28|65P9} 172m7 173r42 177m16 177r16 184r42 191m13 191r13
+157i7 Result{27|62I9} 173m7 176r10
+158a7 Pattern{string} 188m13 218r38
+159i7 Pat_Len{natural} 186m10 187r13 188r27 193r10 218r52
+160a7 Files{string} 202m10 210r40 216r47
+161i7 Files_Len{natural} 203m10 208r18 210r21
+162a7 Output{string} 223r55 224m22 226m22 260r42
+163i7 Out_Len{natural} 223r22 224r30 224r45 225m22 225r33 226r30 227m22 227r33
+. 260r55
+164i7 I{natural} 207m7 208r13 209r15 214r17 216r54 240m10
+164i10 J{natural} 209m10 210r16 210r47 211m13 211r18 214r13 216r59 240r15
+165i7 Score{natural} 218m16 219r19 231r22 232r36
+166i7 Best_Score{natural} 231r30 232m22
+167a7 Best_File{string} 233m22 251r47 256r39
+168i7 Best_Len{natural} 234m22 249r28 251r63 256r55
+169i7 Count{natural} 220m19 220r28 243r10 249r10 261r51
+184a10 Val{string} 186r21 188r39
+200a10 Raw{string} 202r22 202r37 203r23
+216a16 File_Path{string} 218r62 223r32 224r55 224r76 225r43 233r38 233r59
+. 234r34
+251p13 C_Path{28|65P9} 254r45 255m19 255r19
+252i13 Dummy{27|62I9} 254m13
+269a7 Pattern_Buf{27|124A9} 281r36
+270p7 C_Prompt{28|65P9} 282r32 283m13 283r13
+271p7 C_Pattern{28|65P9} 281m7 282r42 286m16 286r16 293r42 300m13 300r13
+272i7 Result{27|62I9} 282m7 285r10
+273a7 Pattern{string} 297m13 308r39 308r96
+274i7 Pat_Len{natural} 295m10 296r13 297r27 302r10 308r53 308r110 308r171
+. 309r23
+275a7 Output{string}
+276i7 Out_Len{natural}
+277a7 Cmd{string} 308m7 308r154 312r45
+278i7 Cmd_Len{natural} 309m7 312r55
+293a10 Val{string} 295r21 297r39
+312a10 Raw{string} 314r13 319r42
+X 24 gnat.ads
+40K9*GNAT 23|7r6 84r18 88r15 89r7 90r7 24|63e9
+X 25 g-os_lib.ads
+51K14*OS_Lib=51:36 23|7w11 84r23 88r20 89r12 90r12
+X 26 interfac.ads
+47K9*Interfaces 22|4r6 5r6 9r8 10r8 26|247e15
+X 27 i-c.ads
+33K20*C 22|4w17 5r17 9r19 10r19 27|601e17
+62I9*int<integer> 22|16r89 22r63 25r62 28r74 31r61 31r73 35r36 35r48 38r36
+. 38r48 23|117r17 153r36 153r48 157r21 252r22 268r36 268r48 272r21
+92M9*size_t 22|16r74 28r59 23|143r55
+109E9*char<character>
+111e4*nul{109E9} 23|154r57 269r57
+124A9*char_array(109E9)<92M9> 23|154r21 269r21
+X 28 i-cstrin.ads
+48K22*Strings 22|5w19 10r21 28|171e25
+65P9*chars_ptr 22|13r36 16r37 16r54 19r42 28r42 31r43 23|17r15 114r17 115r17
+. 155r21 156r21 251r22 270r21 271r21
+80V13*New_Char_Array{65P9} 23|172s20 281s20
+86V13*New_String{65P9} 23|17s28 114s30 142s26 155s34 251s35 270s34
+92U14*Free 23|20s7 121s7 144s16 174s7 177s10 191s7 255s13 283s7 286s10 300s7
+114V13*Value{string} 23|184s35 293s35
+X 30 system.ads
+37K9*System 22|6w6 19r60 22r40 25r39 23|8r6 13r13 116r17 123r15 30|155e11
+67M9*Address 22|19r67 22r47 25r46 23|13r20 116r24
+69m4*Null_Address{67M9} 23|123r22
+81V14*"="{boolean} 23|123r13
+X 31 s-atacco.ads
+42k16*Address_To_Access_Conversions 23|8w13 31|76e41
+X 41 s-os_lib.ads
+85P12*String_List_Access{52|53P9}
+91U14*Free=91:69 23|90s19
+754P12*Argument_List_Access{85P12} 23|84r30
+771V13*Argument_String_To_List{754P12} 23|88s27
+876U14*Spawn 23|89s19
+X 52 s-string.ads
+43P9*String_Access(string)
+52A9*String_List(43P9)<integer>
+53P9*String_List_Access(52A9)
+
