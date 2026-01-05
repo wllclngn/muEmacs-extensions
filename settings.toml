@@ -69,12 +69,111 @@ style = "block"  # block, bar, or underline
 soft_wrap = false       # Enable visual soft-wrapping
 soft_wrap_column = 80   # Column for soft wrap (if enabled)
 
+# =============================================================================
+# UEP EXTENSION PROTOCOL
+# =============================================================================
+# Configure external tool integration for formatting, linting, etc.
+# Use M-x uep-format-buffer to format the current buffer.
+
 [extensions]
-# C23 extension system (Layer 3)
-extension_dir = "~/.config/muemacs/extensions"  # Auto-load .so files from here
-# Script extensions (Layer 2) - drop any executable here
-scripts_dir = "~/.config/muemacs/scripts"       # Auto-register scripts as commands
-timeout = 5000  # Extension command timeout in ms
+timeout = 5000              # Provider timeout in milliseconds
+auto_build = true           # Auto-compile extensions from source (20+ languages supported)
+extension_dir = "~/.config/muemacs/extensions"  # Auto-load directory
+
+# Per-filetype format providers (command receives buffer on stdin, outputs on stdout)
+[extensions.python]
+format = "black -q -"
+
+[extensions.rust]
+format = "rustfmt"
+
+[extensions.c]
+format = "clang-format"
+
+[extensions.cpp]
+format = "clang-format"
+
+[extensions.go]
+format = "gofmt"
+
+[extensions.javascript]
+format = "prettier --stdin-filepath=file.js"
+
+[extensions.typescript]
+format = "prettier --stdin-filepath=file.ts"
+
+[extensions.json]
+format = "jq ."
+
+[extensions.yaml]
+format = "yq -P"
+
+[extensions.sh]
+format = "shfmt -i 2"
+
+[extensions.lua]
+format = "stylua -"
+
+[extensions.zig]
+format = "zig fmt --stdin"
+
+# =============================================================================
+# EXTENSION CONFIGURATION
+# =============================================================================
+# Per-extension settings. Extensions read these via api->config_*().
+# Use [extension.<name>] where <name> matches the extension's registered name.
+#
+# Example:
+#   [extension.mouse]
+#   enabled = true
+#   scroll_lines = 3
+#   double_click_ms = 400
+#
+#   [extension.lsp]
+#   server_timeout = 5000
+#   auto_complete = true
+
+[extension.c_mouse]
+enabled = true
+scroll_lines = 3
+double_click_ms = 400
+triple_click_ms = 600
+
+[extension.c_git]
+auto_status = true      # Show git status hints periodically on save
+status_interval = 5     # Check status every N saves
+
+[extension.c_write_edit]
+soft_wrap_col = 80            # Column for soft wrapping
+smart_typography = true       # Enable smart quotes/dashes
+em_dash = true                # -- becomes em-dash
+smart_quotes = true           # Curly double quotes
+curly_apostrophe = true       # Curly single quotes
+
+# =============================================================================
+# DECLARATIVE EVENT HOOKS
+# =============================================================================
+# Execute editor commands when events occur. No C code required!
+#
+# Supported events:
+#   buffer_save   - After buffer is saved
+#   buffer_load   - After file is loaded
+#   buffer_create - When new buffer is created
+#   cursor_move   - When cursor position changes
+#   idle          - When editor is idle
+#   startup       - When editor starts
+#   shutdown      - When editor shuts down
+#
+# Example:
+#   [hooks.buffer_save]
+#   command = "trim-whitespace"
+#
+#   [hooks.idle]
+#   command = "auto-save-all"
+
+# Uncomment to enable automatic whitespace trimming on save:
+# [hooks.buffer_save]
+# command = "trim-whitespace"
 
 # =============================================================================
 # GLOBAL KEYBINDINGS (Default Emacs Mode)
@@ -565,5 +664,82 @@ max_threads = 8             # Max parallel search threads (1-32)
 #   local-set-key compile ^C^C
 #
 # Or use the [keybindings.filetype] section (future feature).
+#
+# =============================================================================
+# UEP EXTENSION COMMANDS REFERENCE
+# =============================================================================
+# Commands provided by the polyglot extension system.
+# All commands are available via M-x (execute-named-command).
+#
+# Extension: ada_fuzzy (Ada)
+#   fuzzy-find          Find files by fuzzy matching
+#   fuzzy-grep          Search file contents with fuzzy matching
+#
+# Extension: c_git (C)
+#   git-status          Show working tree status
+#   git-status-full     Show full git status
+#   git-stage           Stage file for commit
+#   git-unstage         Unstage file
+#   git-commit          Create commit
+#   git-diff            Show file differences
+#   git-log             Show commit history
+#   git-pull            Pull from remote
+#   git-push            Push to remote
+#   git-branch          List/create branches
+#   git-stash           Stash changes
+#   git-stash-pop       Pop stashed changes
+#
+# Extension: c_lint (C)
+#   lint                Run linter on current buffer
+#   lint-clear          Clear lint diagnostics
+#
+# Extension: c_mouse (C)
+#   mouse-enable        Enable mouse support
+#   mouse-disable       Disable mouse support
+#   mouse-status        Show mouse status
+#
+# Extension: c_write_edit (C)
+#   write-edit          Toggle prose writing mode
+#
+# Extension: crystal_ai (Crystal)
+#   ai-spawn            Spawn AI agent
+#   ai-status           Show agent status
+#   ai-output           Show agent output
+#   ai-kill             Kill running agent
+#   ai-poll             Poll for agent updates
+#   ai-complete         AI code completion
+#   ai-explain          AI code explanation
+#   ai-fix              AI code fix
+#
+# Extension: go_lsp (Go)
+#   lsp-start           Start language server
+#   lsp-stop            Stop language server
+#   lsp-hover           Show hover documentation
+#   lsp-definition      Go to definition
+#   lsp-references      Find references
+#   lsp-refresh-tokens  Refresh semantic tokens
+#   lsp-completion      Trigger completion
+#   lsp-diagnostics     Show diagnostics
+#   lsp-code-action     Show code actions
+#   lsp-document-symbols  List document symbols
+#   lsp-workspace-symbols Search workspace symbols
+#
+# Extension: haskell_project (Haskell)
+#   project-root        Show/set project root
+#   project-files       List project files
+#   project-find        Find file in project
+#
+# Extension: pascal_multicursor (Pascal)
+#   mc-add              Add cursor at current position
+#   mc-clear            Clear all cursors
+#   mc-next             Jump to next cursor
+#   mc-insert           Insert at all cursor positions
+#
+# Extension: rust_search (Rust)
+#   rg-search           Search with ripgrep
+#   rg-search-word      Search word under cursor
+#
+# Extension: zig_treesitter (Zig)
+#   (Provides syntax highlighting via tree-sitter, no user commands)
 #
 # =============================================================================

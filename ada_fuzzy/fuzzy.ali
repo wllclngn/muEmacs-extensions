@@ -1,0 +1,192 @@
+V "GNAT Lib v15"
+A -O2
+A -fPIC
+P SS ZX
+
+RN
+RV NO_DIRECT_BOOLEAN_OPERATORS
+RV NO_IMPLICIT_CONDITIONALS
+RV NO_SECONDARY_STACK
+RV NO_STANDARD_STORAGE_POOLS
+RV NO_DEFAULT_INITIALIZATION
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_IMPLEMENTATION_PRAGMAS
+RV NO_OBSOLESCENT_FEATURES
+
+U fuzzy%b		fuzzy.adb		0bc88e49 NE OO PK
+W ada%s			ada.ads			ada.ali
+W ada.characters%s	a-charac.ads		a-charac.ali
+W ada.characters.handling%s  a-chahan.adb	a-chahan.ali
+Z system.img_int%s	s-imgint.ads		s-imgint.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+
+U fuzzy%s		fuzzy.ads		781b0842 EE NE OO PK
+W interfaces%s		interfac.ads		interfac.ali
+W interfaces.c%s	i-c.adb			i-c.ali
+W interfaces.c.strings%s  i-cstrin.adb		i-cstrin.ali
+W system%s		system.ads		system.ali
+
+D ada.ads		20251112120728 76789da1 ada%s
+D a-charac.ads		20251112120728 2d3ec45b ada.characters%s
+D a-chahan.ads		20251112120728 bf752ff6 ada.characters.handling%s
+D a-chlat1.ads		20251112120728 e0d72e76 ada.characters.latin_1%s
+D a-unccon.ads		20251112120728 0e9b276f ada.unchecked_conversion%s
+D fuzzy.ads		20260104142330 d1763483 fuzzy%s
+D fuzzy.adb		20260104142319 65cb953c fuzzy%b
+D interfac.ads		20251112120728 9111f9c1 interfaces%s
+D i-c.ads		20251112120728 e94c966a interfaces.c%s
+D i-cstrin.ads		20251112120728 5409c1a4 interfaces.c.strings%s
+D system.ads		20251112120728 14286b0f system%s
+D s-exctab.ads		20251112120728 91bef6ef system.exception_table%s
+D s-imagei.ads		20251112120728 5e131ce0 system.image_i%s
+D s-imgint.ads		20251112120728 67e4edfb system.img_int%s
+D s-parame.ads		20251112120728 3597fc11 system.parameters%s
+D s-secsta.ads		20251112120728 578279f5 system.secondary_stack%s
+D s-stalib.ads		20251112120728 1c9580f6 system.standard_library%s
+D s-stoele.ads		20251112120728 ccded4e8 system.storage_elements%s
+D s-unstyp.ads		20251112120728 fa2a7f59 system.unsigned_types%s
+D s-valspe.ads		20251112120728 f810d31c system.val_spec%s
+D s-vaispe.ads		20251112120728 8280550e system.value_i_spec%s
+D s-vauspe.ads		20251112120728 89269ba5 system.value_u_spec%s
+D s-vs_int.ads		20251112120728 06b6b724 system.vs_int%s
+D s-vs_uns.ads		20251112120728 e7f47a27 system.vs_uns%s
+G a e
+G c Z s s [bridge_message fuzzy 18 14 none]
+G c Z s s [bridge_prompt fuzzy 23 13 none]
+G c Z s s [bridge_exec fuzzy 28 13 none]
+G c Z s s [bridge_get_string fuzzy 33 13 none]
+G c Z s s [bridge_get_string_length fuzzy 37 13 none]
+G c Z s s [bridge_buffer_create fuzzy 41 13 none]
+G c Z s s [bridge_buffer_switch fuzzy 44 13 none]
+G c Z s s [bridge_buffer_clear fuzzy 47 13 none]
+G c Z s s [bridge_buffer_insert fuzzy 50 13 none]
+G c Z s s [bridge_find_file_line fuzzy 53 13 none]
+G c Z s b [ada_fuzzy_find fuzzy 57 13 none]
+G c Z s b [ada_fuzzy_grep fuzzy 60 13 none]
+G c Z s b [fuzzy_match fuzzy 64 13 none]
+G c Z s b [fuzzy_score fuzzy 65 13 none]
+G c Z b b [message fuzzy 16 14 none]
+G c Z b b [get_bridge_string fuzzy 24 13 none]
+G c Z b b [show_in_buffer fuzzy 94 14 none]
+X 1 ada.ads
+18K9*Ada 22e8 7|9r6 12r8
+X 2 a-charac.ads
+16K13*Characters 18e19 7|9r10 12r12
+X 3 a-chahan.ads
+43K24*Handling 454e28 7|9w21 12r23
+209V13*To_Lower{character} 7|46s27 49s27
+X 6 fuzzy.ads
+13K9*Fuzzy 67l5 67e10 7|11b14 314l5 314t10
+18U14*Bridge_Message 18>30 7|19s7
+18p30 Msg{10|65P9}
+23V13*Bridge_Prompt{9|62I9} 23>28 7|152s10 261s10
+23p28 Prompt{10|65P9}
+28V13*Bridge_Exec{9|62I9} 28>26 7|176s10 291s13
+28p26 Cmd{10|65P9}
+33V13*Bridge_Get_String{10|65P9} 33^32 7|26s35
+33p32 Out_Len(9|92M9)
+37V13*Bridge_Get_String_Length{9|92M9}
+41V13*Bridge_Buffer_Create{11|67M9} 41>35 7|101s13
+41p35 Name{10|65P9}
+44V13*Bridge_Buffer_Switch{9|62I9} 44>35 7|108s16
+44m35 Bp{11|67M9}
+47V13*Bridge_Buffer_Clear{9|62I9} 47>34 7|109s16
+47m34 Bp{11|67M9}
+50V13*Bridge_Buffer_Insert{9|62I9} 50>35 50>53 7|123s25
+50p35 Text{10|65P9}
+50m53 Len{9|92M9}
+53V13*Bridge_Find_File_Line{9|62I9} 53>36 53>54 7|239s22
+53p36 Path{10|65P9}
+53i54 Line{9|62I9}
+57V13*Ada_Fuzzy_Find{9|62I9} 57>29 57>32 7|133b13 249l8 249t22
+57i29 F{9|62I9} 7|133b29 134r28
+57i32 N{9|62I9} 7|133b32 134r31
+60V13*Ada_Fuzzy_Grep{9|62I9} 60>29 60>32 7|252b13 312l8 312t22
+60i29 F{9|62I9} 7|252b29 253r28
+60i32 N{9|62I9} 7|252b32 253r31
+64V13*Fuzzy_Match{natural} 64>26 64>35 7|84b13 91l8 91t19
+64a26 Pattern{string} 7|84b26 86r23
+64a35 Str{string} 7|84b35 86r32
+65V13*Fuzzy_Score{natural} 65>26 65>35 7|36b13 82l8 82t19 86s10 206s25
+65a26 Pattern{string} 7|36b26 38r32 41r29 45r16 46r37 52r10 56r24 77r20
+65a35 Str{string} 7|36b35 39r32 42r29 48r16 49r37 56r52 62r26 63r16 64r16
+. 65r16
+X 7 fuzzy.adb
+16U14 Message 16b14 16>23 21l8 21t15 154s10 170s10 178s10 230s10 241s13 245s10
+. 263s10 279s10 293s13 302s16 307s13
+16a23 Msg{string} 17r40
+17p7 C_Msg{10|65P9} 19r23 20m13 20r13
+24V13 Get_Bridge_String{string} 24b13 32l8 32t25 161s35 185s35 270s35 299s38
+25m7 Len{9|92M9} 26m54 26r54 28r33 31r26
+26p7 Ptr{10|65P9} 28r10 31r21
+37i7 Score{natural} 58m13 58r22 60m13 60r22 67m16 67r25 78r17
+38i7 Pat_Idx{natural} 56r13 57r24 70m13 70r24 77r10
+39i7 Str_Idx{natural} 56r41 57r46 62r16 63r21 64r21 65r21 74m10 74r21
+40i7 Consecutive{natural} 59m13 59r28 60r30 72m13
+41a7 Pat_Lower{string} 46m10 57r13
+42a7 Str_Lower{string} 49m10 57r35
+45i11 I{integer} 46r21 46r46
+48i11 I{integer} 49r21 49r42
+94U14 Show_In_Buffer 94b14 94>30 94>40 130l8 130t22 244s10 306s13
+94a30 Buf_Name{string} 95r41
+94a40 Content{string} 111r12 112r18 114r21 114r43 120r42
+95p7 C_Name{10|65P9} 101r35 102m13 102r13
+96p7 C_Text{10|65P9} 122m16 123r47 124m22 124r22
+97m7 Bp{11|67M9} 101m7 104r10 108r38 109r37
+98i7 Dummy{9|62I9} 108m7 109m7 123m16
+99i7 I{natural} 111m7 112r13 113r15 118r17 120r51 128m10
+99i10 J{natural} 113m10 114r16 114r52 115m13 115r18 118r13 120r56 128r15
+120a16 Line=120:63{string} 122r38 123r63
+135p7 C_Prompt{10|65P9} 151m7 152r25 153m16 153r16 157m13 157r13
+136p7 C_Cmd{10|65P9} 175m7 176r23 177m16 177r16 181m13 181r13
+137a7 Pattern{string} 163r46 165m13 206r38
+138i7 Pat_Len{natural} 163m10 164r13 165r27 165r69 169r10 206r52
+139a7 Files{string} 186r66 189m13 198r40 204r47
+140i7 Files_Len{natural} 191m10 196r18 198r21
+141a7 Output{string} 210r55 211m22 213m22 244r42
+142i7 Out_Len{natural} 210r22 211r30 211r45 212m22 212r33 213r30 214m22 214r33
+. 244r55
+143i7 I{natural} 195m7 196r13 197r15 202r17 204r54 226m10
+143i10 J{natural} 197m10 198r16 198r47 199m13 199r18 202r13 204r59 226r15
+144i7 Score{natural} 206m16 207r19 217r22 218r36
+145i7 Best_Score{natural} 217r30 218m22
+146a7 Best_File{string} 217r70 219m22 236r47 241r39
+147i7 Best_Len{natural} 220m22 234r29 236r63 241r55
+148i7 Count{natural} 208m19 208r28 229r10 234r10 245r51
+161a10 Val{string} 163r34 165r39 165r44 165r57
+185a10 Val{string} 186r54 189r38 189r43 189r56
+186i10 Copy_Len{natural} 188r13 189r25 189r68 191r23
+204a16 File_Path{string} 206r62 210r32 211r55 211r76 212r43 217r50 219r38
+. 219r59 220r34
+236p13 C_Path{10|65P9} 239r45 240m19 240r19
+237i13 Dummy{9|62I9} 239m13
+254p7 C_Prompt{10|65P9} 260m7 261r25 262m16 262r16 266m13 266r13
+255p7 C_Cmd{10|65P9} 290m10 291r26 292m19 292r19 296m16 296r16
+256a7 Pattern{string} 272r46 274m13 285r35
+257i7 Pat_Len{natural} 272m10 273r13 274r27 274r69 278r10 285r49
+270a10 Val{string} 272r34 274r39 274r44 274r57
+285a10 Pat{string} 286r60 287r52
+286a10 Cmd=287:56{string} 290r31
+299a13 Raw{string} 301r16 306r45
+X 8 interfac.ads
+47K9*Interfaces 6|9r6 10r6 14r8 15r8 8|247e15
+X 9 i-c.ads
+33K20*C 6|9w17 10r17 14r19 15r19 9|601e17
+62I9*int<integer> 6|23r55 28r50 44r63 47r62 50r74 53r61 53r73 57r36 57r48
+. 60r36 60r48 7|98r16 133r36 133r48 237r22 252r36 252r48
+92M9*size_t 6|33r49 37r45 50r59 7|25r21 123r55
+X 10 i-cstrin.ads
+48K22*Strings 6|10w19 15r21 10|171e25
+65P9*chars_ptr 6|18r36 23r37 28r32 33r64 41r42 50r42 53r43 7|17r15 26r22
+. 95r16 96r16 135r20 136r20 236r22 254r18 255r18
+70p4*Null_Ptr{65P9} 7|28r16
+86V13*New_String{65P9} 7|17s28 95s29 122s26 151s19 175s16 236s35 260s19 290s19
+92U14*Free 7|20s7 102s7 124s16 153s10 157s7 177s10 181s7 240s13 262s10 266s7
+. 292s13 296s10
+118V13*Value{string} 7|31s14
+X 11 system.ads
+37K9*System 6|11w6 41r60 44r40 47r39 7|13r13 97r16 104r15 11|155e11
+67M9*Address 6|41r67 44r47 47r46 7|13r20 97r23
+69m4*Null_Address{67M9} 7|104r22
+81V14*"="{boolean} 7|104r13
+

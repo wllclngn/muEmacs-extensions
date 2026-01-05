@@ -1,0 +1,20 @@
+[package]
+name = "rust_search"
+version = "1.0.0"
+edition = "2021"
+description = "Rust ripgrep extension for μEmacs - proves Rust FFI works"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+grep = "0.3"
+grep-regex = "0.1"
+grep-searcher = "0.1"
+grep-matcher = "0.1"
+walkdir = "2"
+ignore = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true

@@ -1,0 +1,1 @@
+/home/mod/.config/muemacs/extensions/search/target/release/librg_search_rs.so: /home/mod/.config/muemacs/extensions/search/src/ffi.rs /home/mod/.config/muemacs/extensions/search/src/lib.rs /home/mod/.config/muemacs/extensions/search/src/search.rs

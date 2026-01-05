@@ -1,0 +1,1 @@
+/home/mod/.config/muemacs/extensions/rust_search/target/release/librust_search.so: /home/mod/.config/muemacs/extensions/rust_search/src/ffi.rs /home/mod/.config/muemacs/extensions/rust_search/src/lib.rs /home/mod/.config/muemacs/extensions/rust_search/src/search.rs

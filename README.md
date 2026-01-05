@@ -1,144 +1,172 @@
-# μEmacs-extensions v1.0.0
+# UEP Extensions
 
-A polyglot showcase for the μEmacs Extension Platform (UEP). Each extension is written in a different language, compiled to a shared library, and loaded via `dlopen()`.
+μEmacs Extension Platform (UEP) native extensions directory.
 
-## Architecture
+## Naming Convention
 
-Extensions communicate with μEmacs through the C-based `uemacs_api` struct, which provides:
-- Command registration/unregistration
-- Buffer operations (create, switch, insert, clear)
-- Cursor/point manipulation
-- User prompts and messages
-- Event hooks (key press, buffer save/load, idle)
-- Shell command execution
-- Logging
+Extensions follow the `language_tool` naming pattern:
+- **Directory**: `language_tool/` (snake_case, language prefix)
+- **Shared Object**: `language_tool.so` (matches directory)
+- **Commands**: `prefix-action` (kebab-case)
 
-Non-C languages use a thin C bridge layer that wraps the API and exposes it via FFI.
+## Installed Extensions
 
-## Extensions
+| Extension | Language | Type | Description |
+|-----------|----------|------|-------------|
+| `ada_fuzzy` | Ada | Out-of-Process | Fuzzy file finder |
+| `c_git` | C | In-Process | Git integration |
+| `c_lint` | C | In-Process | Unified linter |
+| `c_mouse` | C | In-Process | Mouse support |
+| `crystal_ai` | Crystal | Out-of-Process | AI code assistance |
+| `go_lsp` | Go | Out-of-Process | Language Server Protocol client |
+| `haskell_project` | Haskell | Out-of-Process | Project management |
+| `pascal_multicursor` | Pascal | Out-of-Process | Multiple cursors |
+| `rust_search` | Rust | In-Process | Ripgrep-powered search |
+| `zig_treesitter` | Zig | In-Process | Tree-sitter syntax highlighting |
 
-| Extension | Language | Description |
-|-----------|----------|-------------|
-| `ai_crystal/` | Crystal | AI agents via Claude CLI |
-| `fuzzy_ada/` | Ada 2012 | Fuzzy file finder |
-| `git_fortran/` | Fortran | Git integration |
-| `lsp_client/` | Go | Language Server Protocol client |
-| `multicursor_pascal/` | Free Pascal | Multiple cursor editing |
-| `project_haskell/` | Haskell | Project root detection and file listing |
-| `rg_search.c` | C23 | ripgrep search (fork/exec) |
-| `rg_search_rs/` | Rust | ripgrep search (in-process via grep crate) |
-| `treesitter_hl/` | Zig | Tree-sitter syntax highlighting |
+## Extension Types
 
-## Commands
+### In-Process (dlopen)
+Direct `.so` loading via `dlopen()`. Lower overhead, full memory access.
+- **Languages**: C, Rust, Zig
 
-### AI (Crystal)
-- `ai-spawn` - Spawn Claude agent with prompt, output to `*claude-N*` buffer
-- `ai-status` - List all agents and their status
-- `ai-output` - Switch to agent's output buffer
-- `ai-kill` - Kill a running agent
-- `ai-poll` - Poll agents and update buffers
-- `ai-complete` - Complete code at point
-- `ai-explain` - Explain current line
-- `ai-fix` - Suggest fix for current line
+### Out-of-Process (IPC)
+Separate process with bidirectional IPC via memfd/eventfd.
+- **Languages**: Go, Ada, Haskell, Crystal, Pascal
+- **Benefits**: Process isolation, crash recovery, language flexibility
 
-### Fuzzy Finder (Ada)
-- `fuzzy-find` - Fuzzy file search
-- `fuzzy-grep` - Fuzzy content search
+## Command Reference
 
-### Git (Fortran)
-- `git-status` - Show `git status --short`
-- `git-diff` - Show `git diff`
-- `git-log` - Show 20 recent commits
-- `git-blame` - Blame current line
-- `git-add` - Stage current file
+### ada_fuzzy
+| Command | Description |
+|---------|-------------|
+| `fuzzy-find` | Fuzzy file finder |
 
-### LSP (Go)
-- `lsp-start` - Start language server for current file
-- `lsp-stop` - Stop language server
-- `lsp-hover` - Show hover info at point
-- `lsp-definition` - Jump to definition
-- `lsp-references` - Find all references
+### c_git
+| Command | Description |
+|---------|-------------|
+| `git-status` | Show git status |
+| `git-diff` | Show unstaged changes |
+| `git-log` | Show commit history |
+| `git-blame` | Show line-by-line blame |
+| `git-stage` | Stage current file |
+| `git-commit` | Commit staged changes |
+| `git-branch` | Show/switch branches |
 
-Supported: Python (pyright), Rust (rust-analyzer), Go (gopls), C/C++ (clangd), JS/TS, Zig (zls)
+### c_lint
+| Command | Description |
+|---------|-------------|
+| `lint` | Run linter on buffer |
+| `lint-clear` | Clear diagnostics |
 
-### Multiple Cursors (Pascal)
-- `mc-add` - Add cursor at point
-- `mc-clear` - Clear all cursors
-- `mc-next` - Cycle to next cursor
-- `mc-insert` - Insert marker at all cursor positions
+### c_mouse
+| Command | Description |
+|---------|-------------|
+| `mouse-enable` | Enable mouse support |
+| `mouse-disable` | Disable mouse support |
+| `mouse-status` | Show mouse state |
 
-### Project (Haskell)
-- `project-root` - Find and display project root
-- `project-files` - List all source files in project
-- `project-find` - Interactive file list
+### crystal_ai
+| Command | Description |
+|---------|-------------|
+| `ai-spawn` | Spawn Claude agent with prompt |
+| `ai-status` | List agents and status |
+| `ai-output` | Switch to agent buffer |
+| `ai-kill` | Kill running agent |
+| `ai-poll` | Poll agents for output |
+| `ai-complete` | Complete code at cursor |
+| `ai-explain` | Explain code at cursor |
+| `ai-fix` | Suggest fix for code |
 
-Detects: `.git`, `Makefile`, `CMakeLists.txt`, `package.json`, `Cargo.toml`, `go.mod`, etc.
+### go_lsp
+| Command | Description |
+|---------|-------------|
+| `lsp-start` | Start language server |
+| `lsp-stop` | Stop language server |
+| `lsp-restart` | Restart language server |
+| `lsp-goto-def` | Go to definition |
+| `lsp-find-refs` | Find references |
+| `lsp-hover` | Show hover info |
+| `lsp-rename` | Rename symbol |
+| `lsp-format` | Format buffer |
+| `lsp-actions` | Show code actions |
 
-### Ripgrep Search (C / Rust)
-- `rg-search` / `rg-search-rs` - Search for pattern
-- `rg-search-word` / `rg-search-word-rs` - Search word under cursor
-- `rg-goto` - Jump to file:line from results (also Enter key)
+### haskell_project
+| Command | Description |
+|---------|-------------|
+| `project-root` | Show project root |
+| `project-files` | List source files |
+| `project-find` | Navigate to project file |
 
-### Tree-sitter (Zig)
-- `ts-highlight` - Parse and highlight current buffer
-- `ts-clear` - Clear highlighting state
+### pascal_multicursor
+| Command | Description |
+|---------|-------------|
+| `mc-add` | Add cursor at point |
+| `mc-add-next` | Add cursor at next match |
+| `mc-add-all` | Add cursors at all matches |
+| `mc-clear` | Clear all cursors |
 
-Parsers: C, Python, Rust, Bash, JavaScript
+### rust_search
+| Command | Description |
+|---------|-------------|
+| `rg-search` | Search with pattern |
+| `rg-search-word` | Search word at cursor |
 
-## Building
+### zig_treesitter
+Automatic - activates on supported file types (.c, .h, .py, .rs, .sh, .js).
 
-Each extension has its own `Makefile`. Build individually:
+## Configuration
 
-```sh
-cd ai_crystal && make
-cd fuzzy_ada && make
-cd git_fortran && make
-cd multicursor_pascal && make
-cd project_haskell && make
-cd rg_search_rs && cargo build --release
-cd treesitter_hl && zig build
-```
+Extensions are configured in `~/.config/muemacs/settings.toml`:
 
-For Go:
-```sh
-cd lsp_client && go build -buildmode=c-shared -o lsp_client.so
-```
-
-For C:
-```sh
-gcc -shared -fPIC -O2 -o rg_search.so rg_search.c
-```
-
-## Installation
-
-Copy `.so` files to the extension directory:
-```sh
-cp *.so ~/.config/muemacs/extensions/
-```
-
-Or set `extension_dir` in `settings.toml`:
 ```toml
-[extensions]
-extension_dir = "~/.config/muemacs/extensions"
+[extension.c_mouse]
+enabled = true
+scroll_lines = 3
+
+[extension.c_git]
+auto_status = true
+
+[extension.go_lsp]
+enabled = true
 ```
 
-## Extension API (C)
+## Building Extensions
 
+Each extension has its own build system:
+
+```sh
+# C extensions
+cd extension_name && make
+
+# Rust extensions
+cargo build --release && cp target/release/lib*.so ./extension_name.so
+
+# Zig extensions
+zig build -Doptimize=ReleaseFast && cp zig-out/lib/*.so ./extension_name.so
+
+# Out-of-process extensions (Go, Ada, Haskell, Crystal, Pascal)
+make  # Builds bridge.c and language-specific components
+```
+
+## Adding Extensions
+
+1. Create directory: `~/.config/muemacs/extensions/language_tool/`
+2. Implement extension with `uemacs_extension` struct
+3. Build shared object: `language_tool.so`
+4. Add config section: `[extension.language_tool]` in settings.toml
+5. Restart μEmacs or use `M-x extension-load`
+
+## API Version
+
+Current API version: **3** (Event Bus)
+
+Extensions declare their API version in the `uemacs_extension` struct:
 ```c
-struct uemacs_extension {
-    int api_version;
-    const char *name;
-    const char *version;
-    const char *description;
-    int (*init)(struct uemacs_api *api);
-    void (*cleanup)(void);
+static struct uemacs_extension ext = {
+    .name = "language_tool",
+    .version = "1.0.0",
+    .api_version = 3,
+    ...
 };
-
-struct uemacs_extension *uemacs_extension_entry(void);
 ```
-
-The `init` function receives a pointer to `uemacs_api` with ~40 function pointers for editor interaction. Return 0 on success.
-
-## License
-
-Same as μEmacs.
