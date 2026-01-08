@@ -17,6 +17,7 @@ Extensions follow the `language_tool` naming pattern:
 | `c_git` | C | In-Process | Git integration |
 | `c_lint` | C | In-Process | Unified linter |
 | `c_mouse` | C | In-Process | Mouse support |
+| `c_write_edit` | C | In-Process | Prose editing mode |
 | `crystal_ai` | Crystal | Out-of-Process | AI code assistance |
 | `go_lsp` | Go | Out-of-Process | Language Server Protocol client |
 | `haskell_project` | Haskell | Out-of-Process | Project management |
@@ -65,6 +66,11 @@ Separate process with bidirectional IPC via memfd/eventfd.
 | `mouse-enable` | Enable mouse support |
 | `mouse-disable` | Disable mouse support |
 | `mouse-status` | Show mouse state |
+
+### c_write_edit
+| Command | Description |
+|---------|-------------|
+| `write-edit` | Toggle prose editing mode |
 
 ### crystal_ai
 | Command | Description |
@@ -126,6 +132,10 @@ scroll_lines = 3
 
 [extension.c_git]
 auto_status = true
+
+[extension.c_write_edit]
+soft_wrap_col = 80
+smart_typography = true
 
 [extension.go_lsp]
 enabled = true
