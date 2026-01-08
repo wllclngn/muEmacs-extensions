@@ -1,0 +1,98 @@
+# Compiled shared libraries
+*.so
+*.dylib
+*.dll
+
+# Object files
+*.o
+*.obj
+
+# Archives / static libraries
+*.a
+*.lib
+*.rlib
+
+# Rust
+target/
+Cargo.lock
+
+# Zig
+.zig-cache/
+zig-out/
+zig-cache/
+
+# Go
+*.exe
+go.sum
+
+# Ada
+*.ali
+b~*.adb
+b~*.ads
+
+# Haskell
+*.hi
+*.chi
+*.chs.h
+*_stub.h
+dist/
+dist-newstyle/
+.cabal-sandbox/
+cabal.sandbox.config
+.stack-work/
+.ghc.environment.*
+
+# Crystal
+.crystal/
+*.dwarf
+
+# Pascal / Free Pascal
+*.ppu
+*.compiled
+*.or
+link.res
+ppas.sh
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+build/
+develop-eggs/
+eggs/
+*.egg-info/
+*.egg
+
+# Editor/IDE
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+*.sublime-*
+.project
+.settings/
+.classpath
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Debug / profiling
+*.dSYM/
+*.su
+*.idb
+*.pdb
+vgcore.*
+core
+core.*
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
