@@ -1,7 +1,7 @@
 /*
  * write_edit.c - WriteEdit Prose Mode Extension for μEmacs
  *
- * API Version: 3 (Event Bus)
+ * API Version: 4 (ABI-Stable Named Lookup)
  *
  * Provides Word-like document editing:
  * - Soft-wrap: Visual line wrapping without hard newlines
@@ -32,7 +32,69 @@
 #include <uep/extension.h>
 #include <uep/extension_api.h>
 
-static struct uemacs_api *api;
+/*
+ * ABI-Stable API Access
+ *
+ * Instead of using struct offsets (which break when the API struct changes),
+ * we look up functions by name at init time. This makes the extension immune
+ * to additions/removals/reordering in the μEmacs API.
+ */
+
+/* Function pointer types for the API functions we use */
+typedef int (*on_fn)(const char*, uemacs_event_fn, void*, int);
+typedef int (*off_fn)(const char*, uemacs_event_fn);
+typedef int (*config_int_fn)(const char*, const char*, int);
+typedef bool (*config_bool_fn)(const char*, const char*, bool);
+typedef int (*register_command_fn)(const char*, uemacs_cmd_fn);
+typedef int (*unregister_command_fn)(const char*);
+typedef struct buffer *(*current_buffer_fn)(void);
+typedef const char *(*buffer_name_fn)(struct buffer*);
+typedef void (*message_fn)(const char*, ...);
+typedef void (*update_display_fn)(void);
+typedef int (*buffer_insert_fn)(const char*, size_t);
+typedef void (*get_point_fn)(int*, int*);
+typedef void (*set_point_fn)(int, int);
+typedef char *(*get_current_line_fn)(void);
+typedef int (*delete_chars_fn)(int);
+typedef void *(*alloc_fn)(size_t);
+typedef void (*free_fn)(void*);
+typedef char *(*strdup_fn)(const char*);
+typedef void (*log_fn)(const char*, ...);
+typedef int (*modeline_register_fn)(const char*, uemacs_modeline_fn, void*, int);
+typedef int (*modeline_unregister_fn)(const char*);
+typedef void (*modeline_refresh_fn)(void);
+typedef struct window *(*current_window_fn)(void);
+typedef int (*window_set_wrap_col_fn)(struct window*, int);
+
+/* Our local API - only the functions we actually use */
+static struct {
+    on_fn on;
+    off_fn off;
+    config_int_fn config_int;
+    config_bool_fn config_bool;
+    register_command_fn register_command;
+    unregister_command_fn unregister_command;
+    current_buffer_fn current_buffer;
+    buffer_name_fn buffer_name;
+    message_fn message;
+    update_display_fn update_display;
+    buffer_insert_fn buffer_insert;
+    get_point_fn get_point;
+    set_point_fn set_point;
+    get_current_line_fn get_current_line;
+    delete_chars_fn delete_chars;
+    alloc_fn alloc;
+    free_fn free;
+    strdup_fn strdup;
+    log_fn log_info;
+    log_fn log_error;
+    log_fn log_debug;
+    modeline_register_fn modeline_register;
+    modeline_unregister_fn modeline_unregister;
+    modeline_refresh_fn modeline_refresh;
+    current_window_fn current_window;
+    window_set_wrap_col_fn window_set_wrap_col;
+} api;
 
 /* Settings (read from [extension.write-edit] in settings.toml) */
 static int soft_wrap_col = 80;
@@ -75,17 +137,17 @@ static bool is_writeedit_enabled(void);
 static char *writeedit_modeline_format(void *user_data) {
     (void)user_data;
     if (!is_writeedit_enabled()) return NULL;
-    return api->strdup(":WE");
+    return api.strdup(":WE");
 }
 
 /*
  * Check if write-edit mode is enabled for current buffer
  */
 static bool is_writeedit_enabled(void) {
-    struct buffer *bp = api->current_buffer();
+    struct buffer *bp = api.current_buffer();
     if (!bp) return false;
 
-    const char *name = api->buffer_name(bp);
+    const char *name = api.buffer_name(bp);
     if (!name) return false;
 
     for (int i = 0; i < enabled_buffer_count; i++) {
@@ -110,7 +172,7 @@ static void enable_writeedit(const char *bufname) {
     /* Find empty slot or add new */
     for (int i = 0; i < MAX_WRITEEDIT_BUFFERS; i++) {
         if (!enabled_buffers[i]) {
-            enabled_buffers[i] = api->strdup(bufname);
+            enabled_buffers[i] = api.strdup(bufname);
             if (i >= enabled_buffer_count) {
                 enabled_buffer_count = i + 1;
             }
@@ -125,7 +187,7 @@ static void enable_writeedit(const char *bufname) {
 static void disable_writeedit(const char *bufname) {
     for (int i = 0; i < enabled_buffer_count; i++) {
         if (enabled_buffers[i] && strcmp(enabled_buffers[i], bufname) == 0) {
-            api->free(enabled_buffers[i]);
+            api.free(enabled_buffers[i]);
             enabled_buffers[i] = NULL;
             return;
         }
@@ -141,7 +203,7 @@ static bool is_word_boundary(int c) {
 }
 
 /*
- * Event handler for character insert events (smart typography).
+ * Event handler for character insert events (smart typography + Tab handling).
  * Uses the event bus API (v3).
  *
  * The event->data is a char_insert_event_t pointer:
@@ -157,8 +219,24 @@ static bool writeedit_char_event(uemacs_event_t *event, void *user_data) {
     char_insert_event_t *data = (char_insert_event_t *)event->data;
     int c = data->character;
 
-    if (!is_writeedit_enabled() || !smart_typography) {
-        /* Not in write-edit mode or typography disabled - pass through */
+    if (!is_writeedit_enabled()) {
+        /* Not in write-edit mode - pass through */
+        prev_char = c;
+        return false;
+    }
+
+    /* Tab → 5 spaces (always in :WE mode, regardless of typography setting) */
+    if (c == '\t') {
+        /* Insert 5 spaces manually, consume the tab event */
+        api.buffer_insert("     ", 5);
+        event->consumed = true;  /* Stop propagation */
+        data->transformed = 0;   /* Don't insert the tab */
+        prev_char = ' ';
+        return true;
+    }
+
+    /* Smart typography transforms (only if enabled) */
+    if (!smart_typography) {
         prev_char = c;
         return false;
     }
@@ -234,7 +312,7 @@ static void insert_bullet_entry(void) {
     time_t now = time(NULL);
     struct tm *tm = localtime(&now);
     if (!tm) {
-        api->message("[ERROR: Could not get current time]");
+        api.message("[ERROR: Could not get current time]");
         return;
     }
 
@@ -245,50 +323,77 @@ static void insert_bullet_entry(void) {
              tm->tm_hour, tm->tm_min, tm->tm_sec);
 
     /* Get first line - only do bullet stuff if file already has one */
-    api->set_point(1, 0);
-    char *first_line = api->get_current_line();
+    api.set_point(1, 0);
+    char *first_line = api.get_current_line();
     char old_date[32] = {0}, old_time[16] = {0};
 
     if (!first_line || !parse_bullet_datetime(first_line, old_date, old_time)) {
         /* No bullet on line 1 - not a journal file, skip bullet insertion */
-        api->log_debug("write_edit: No bullet found, skipping date insertion");
-        if (first_line) api->free(first_line);
+        api.log_debug("write_edit: No bullet found, skipping date insertion");
+        if (first_line) api.free(first_line);
         return;
     }
 
     int old_len = (int)strlen(first_line);
     bool same_day = (strcmp(new_date, old_date) == 0);
-    api->log_debug("write_edit: old=%s new=%s same=%d len=%d", old_date, new_date, same_day, old_len);
-    api->free(first_line);
+    api.log_debug("write_edit: old=%s new=%s same=%d len=%d", old_date, new_date, same_day, old_len);
+    api.free(first_line);
 
     if (same_day) {
         /* Same day: Insert [EARLIER:] then new bullet, then delete old bullet */
-        api->set_point(1, 0);
+        api.set_point(1, 0);
         char marker[48];
         int mlen = snprintf(marker, sizeof(marker), "[EARLIER: %s]\n\n", old_time);
-        api->buffer_insert(marker, mlen);
+        api.buffer_insert(marker, mlen);
 
-        api->set_point(1, 0);
+        api.set_point(1, 0);
         char timestamp[64];
         int tlen = snprintf(timestamp, sizeof(timestamp),
                            BULLET " %s %s\n\n\n\n", new_date, new_time);
-        api->buffer_insert(timestamp, tlen);
+        api.buffer_insert(timestamp, tlen);
 
         /* Old bullet now at line 7 - delete it + following blank line */
-        api->set_point(7, 0);
-        api->delete_chars(old_len + 2);  /* content + newline + blank newline */
+        api.set_point(7, 0);
+        api.delete_chars(old_len + 2);  /* content + newline + blank newline */
     } else {
         /* Different day - just insert new timestamp at top */
-        api->set_point(1, 0);
+        api.set_point(1, 0);
         char timestamp[64];
         int len = snprintf(timestamp, sizeof(timestamp),
                            BULLET " %s %s\n\n\n\n", new_date, new_time);
-        api->buffer_insert(timestamp, len);
+        api.buffer_insert(timestamp, len);
     }
 
     /* Position cursor on line 3 */
-    api->set_point(3, 0);
-    api->update_display();
+    api.set_point(3, 0);
+    api.update_display();
+}
+
+/*
+ * Buffer switch event handler - manages wrap_col per-buffer
+ *
+ * When switching buffers, we need to:
+ * - Enable soft wrap if the NEW buffer has :WE enabled
+ * - Disable soft wrap if the NEW buffer does NOT have :WE enabled
+ *
+ * This prevents :WE's soft-wrap setting from bleeding into other buffers.
+ */
+static bool writeedit_buffer_switch(uemacs_event_t *event, void *user_data) {
+    (void)event;
+    (void)user_data;
+
+    struct window *wp = api.current_window();
+    if (!wp) return false;
+
+    if (is_writeedit_enabled()) {
+        /* New buffer has :WE enabled - turn on soft wrap */
+        api.window_set_wrap_col(wp, soft_wrap_col);
+    } else {
+        /* New buffer does NOT have :WE - turn off soft wrap */
+        api.window_set_wrap_col(wp, 0);
+    }
+
+    return false;  /* Don't consume - let other handlers see it */
 }
 
 /*
@@ -299,13 +404,13 @@ static int cmd_write_edit(int f, int n) {
     (void)f;
     (void)n;
 
-    struct buffer *bp = api->current_buffer();
+    struct buffer *bp = api.current_buffer();
     if (!bp) return 0;
 
-    const char *bufname = api->buffer_name(bp);
+    const char *bufname = api.buffer_name(bp);
     if (!bufname) return 0;
 
-    struct window *wp = api->current_window();
+    struct window *wp = api.current_window();
 
     if (is_writeedit_enabled()) {
         /* Disable WriteEdit mode */
@@ -313,18 +418,18 @@ static int cmd_write_edit(int f, int n) {
 
         /* Disable soft wrap */
         if (wp) {
-            api->window_set_wrap_col(wp, 0);
+            api.window_set_wrap_col(wp, 0);
         }
 
         prev_char = 0;
-        api->message("[WRITEEDIT DISABLED]");
+        api.message("[WRITEEDIT DISABLED]");
     } else {
         /* Enable WriteEdit mode */
         enable_writeedit(bufname);
 
         /* Enable soft wrap */
         if (wp) {
-            api->window_set_wrap_col(wp, soft_wrap_col);
+            api.window_set_wrap_col(wp, soft_wrap_col);
         }
 
         prev_char = 0;
@@ -334,30 +439,75 @@ static int cmd_write_edit(int f, int n) {
     }
 
     /* Force modeline refresh for immediate indicator update */
-    if (api->modeline_refresh) {
-        api->modeline_refresh();
+    if (api.modeline_refresh) {
+        api.modeline_refresh();
     }
-    api->update_display();
+    api.update_display();
     return 1;
 }
 
 /*
- * Extension init
+ * Extension init - uses ABI-stable named lookup
  */
 static int writeedit_init(struct uemacs_api *editor_api) {
-    api = editor_api;
+    /*
+     * Use get_function() for ABI stability.
+     * This extension will work even if the API struct layout changes.
+     */
+    if (!editor_api->get_function) {
+        /* Fallback for older μEmacs without get_function */
+        fprintf(stderr, "write_edit: Requires μEmacs with get_function() support\n");
+        return -1;
+    }
 
-    if (api->api_version < 3) {
-        api->log_error("write_edit: Requires API v3 (event bus)");
+    /* Look up all API functions by name */
+    #define LOOKUP(name) editor_api->get_function(#name)
+
+    api.on = (on_fn)LOOKUP(on);
+    api.off = (off_fn)LOOKUP(off);
+    api.config_int = (config_int_fn)LOOKUP(config_int);
+    api.config_bool = (config_bool_fn)LOOKUP(config_bool);
+    api.register_command = (register_command_fn)LOOKUP(register_command);
+    api.unregister_command = (unregister_command_fn)LOOKUP(unregister_command);
+    api.current_buffer = (current_buffer_fn)LOOKUP(current_buffer);
+    api.buffer_name = (buffer_name_fn)LOOKUP(buffer_name);
+    api.message = (message_fn)LOOKUP(message);
+    api.update_display = (update_display_fn)LOOKUP(update_display);
+    api.buffer_insert = (buffer_insert_fn)LOOKUP(buffer_insert);
+    api.get_point = (get_point_fn)LOOKUP(get_point);
+    api.set_point = (set_point_fn)LOOKUP(set_point);
+    api.get_current_line = (get_current_line_fn)LOOKUP(get_current_line);
+    api.delete_chars = (delete_chars_fn)LOOKUP(delete_chars);
+    api.alloc = (alloc_fn)LOOKUP(alloc);
+    api.free = (free_fn)LOOKUP(free);
+    api.strdup = (strdup_fn)LOOKUP(strdup);
+    api.log_info = (log_fn)LOOKUP(log_info);
+    api.log_error = (log_fn)LOOKUP(log_error);
+    api.log_debug = (log_fn)LOOKUP(log_debug);
+    api.modeline_register = (modeline_register_fn)LOOKUP(modeline_register);
+    api.modeline_unregister = (modeline_unregister_fn)LOOKUP(modeline_unregister);
+    api.modeline_refresh = (modeline_refresh_fn)LOOKUP(modeline_refresh);
+    api.current_window = (current_window_fn)LOOKUP(current_window);
+    api.window_set_wrap_col = (window_set_wrap_col_fn)LOOKUP(window_set_wrap_col);
+
+    #undef LOOKUP
+
+    /* Verify critical functions were found */
+    if (!api.on || !api.off || !api.register_command || !api.log_error) {
+        fprintf(stderr, "write_edit: Missing critical API functions\n");
         return -1;
     }
 
     /* Read configuration from settings.toml [extension.write-edit] */
-    soft_wrap_col = api->config_int("write-edit", "soft_wrap_col", 80);
-    smart_typography = api->config_bool("write-edit", "smart_typography", true);
-    em_dash_enabled = api->config_bool("write-edit", "em_dash", true);
-    smart_quotes_enabled = api->config_bool("write-edit", "smart_quotes", true);
-    curly_apostrophe_enabled = api->config_bool("write-edit", "curly_apostrophe", true);
+    if (api.config_int) {
+        soft_wrap_col = api.config_int("write-edit", "soft_wrap_col", 80);
+    }
+    if (api.config_bool) {
+        smart_typography = api.config_bool("write-edit", "smart_typography", true);
+        em_dash_enabled = api.config_bool("write-edit", "em_dash", true);
+        smart_quotes_enabled = api.config_bool("write-edit", "smart_quotes", true);
+        curly_apostrophe_enabled = api.config_bool("write-edit", "curly_apostrophe", true);
+    }
 
     /* Initialize buffer tracking */
     memset(enabled_buffers, 0, sizeof(enabled_buffers));
@@ -365,25 +515,33 @@ static int writeedit_init(struct uemacs_api *editor_api) {
     prev_char = 0;
 
     /* Register command */
-    if (api->register_command("WE", cmd_write_edit) != 0) {
-        api->log_error("write_edit: Failed to register WE command");
+    if (api.register_command("WE", cmd_write_edit) != 0) {
+        api.log_error("write_edit: Failed to register WE command");
         return -1;
     }
 
     /* Register character transform event handler via event bus */
-    if (api->on(UEMACS_EVT_CHAR_INSERT, writeedit_char_event, NULL, 0) != 0) {
-        api->log_error("write_edit: Failed to register char insert handler");
-        api->unregister_command("write-edit");
+    if (api.on(UEMACS_EVT_CHAR_INSERT, writeedit_char_event, NULL, 0) != 0) {
+        api.log_error("write_edit: Failed to register char insert handler");
+        api.unregister_command("WE");
+        return -1;
+    }
+
+    /* Register buffer switch handler to manage wrap_col per-buffer */
+    if (api.on("buffer:switch", writeedit_buffer_switch, NULL, 0) != 0) {
+        api.log_error("write_edit: Failed to register buffer switch handler");
+        api.off(UEMACS_EVT_CHAR_INSERT, writeedit_char_event);
+        api.unregister_command("WE");
         return -1;
     }
 
     /* Register modeline segment (low urgency - informational) */
-    if (api->modeline_register) {
-        api->modeline_register("write-edit", writeedit_modeline_format, NULL,
+    if (api.modeline_register) {
+        api.modeline_register("write-edit", writeedit_modeline_format, NULL,
                                UEMACS_MODELINE_URGENCY_LOW);
     }
 
-    api->log_info("write_edit v3.0.0 loaded (wrap=%d, typography=%s, modeline)",
+    api.log_info("write_edit v4.2.0 loaded (per-buffer wrap=%d, typography=%s)",
                   soft_wrap_col, smart_typography ? "on" : "off");
     return 0;
 }
@@ -392,32 +550,33 @@ static int writeedit_init(struct uemacs_api *editor_api) {
  * Extension cleanup
  */
 static void writeedit_cleanup(void) {
-    /* Remove event handler and command */
-    api->off(UEMACS_EVT_CHAR_INSERT, writeedit_char_event);
-    api->unregister_command("WE");
+    /* Remove event handlers and command */
+    api.off(UEMACS_EVT_CHAR_INSERT, writeedit_char_event);
+    api.off("buffer:switch", writeedit_buffer_switch);
+    api.unregister_command("WE");
 
     /* Unregister modeline segment */
-    if (api->modeline_unregister) {
-        api->modeline_unregister("write-edit");
+    if (api.modeline_unregister) {
+        api.modeline_unregister("write-edit");
     }
 
     /* Free buffer name strings */
     for (int i = 0; i < MAX_WRITEEDIT_BUFFERS; i++) {
         if (enabled_buffers[i]) {
-            api->free(enabled_buffers[i]);
+            api.free(enabled_buffers[i]);
             enabled_buffers[i] = NULL;
         }
     }
     enabled_buffer_count = 0;
 
-    api->log_info("write_edit unloaded");
+    api.log_info("write_edit unloaded");
 }
 
 /* Extension descriptor */
 static struct uemacs_extension writeedit_ext = {
-    .api_version = 3,  /* Requires event bus API */
+    .api_version = 4  /* ABI-stable API */,  /* Minimum API version required */
     .name = "c_write_edit",
-    .version = "3.1.0",  /* v3.1: Bullet journaling */
+    .version = "4.2.0",  /* v4.2: Per-buffer soft-wrap (no bleed to other buffers) */
     .description = "Prose editing: soft-wrap, smart typography, bullet journaling",
     .init = writeedit_init,
     .cleanup = writeedit_cleanup,

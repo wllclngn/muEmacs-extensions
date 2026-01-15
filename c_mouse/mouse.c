@@ -1,6 +1,8 @@
 /*
  * mouse.c - Comprehensive C23 Mouse Support Extension for muEmacs
  *
+ * API Version: 4 (ABI-Stable Named Lookup)
+ *
  * Features:
  * - Click to position cursor
  * - Double-click to select word
@@ -26,6 +28,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <time.h>
 #include <string.h>
 
@@ -96,9 +99,59 @@ typedef struct {
     selection_mode_t mode;
 } selection_state_t;
 
-/* Global extension state */
+/* ============================================================================
+ * ABI-Stable API Access - Function pointer types
+ * ============================================================================ */
+
+typedef int (*on_fn)(const char*, uemacs_event_fn, void*, int);
+typedef int (*off_fn)(const char*, uemacs_event_fn);
+typedef int (*config_int_fn)(const char*, const char*, int);
+typedef bool (*config_bool_fn)(const char*, const char*, bool);
+typedef int (*register_command_fn)(const char*, uemacs_cmd_fn);
+typedef int (*unregister_command_fn)(const char*);
+typedef struct window *(*current_window_fn)(void);
+typedef struct window *(*window_at_row_fn)(int);
+typedef int (*window_switch_fn)(struct window*);
+typedef int (*screen_to_buffer_pos_fn)(struct window*, int, int, int*, int*);
+typedef void (*get_point_fn)(int*, int*);
+typedef void (*set_point_fn)(int, int);
+typedef int (*set_mark_fn)(void);
+typedef int (*scroll_up_fn)(int);
+typedef int (*scroll_down_fn)(int);
+typedef char *(*get_word_at_point_fn)(void);
+typedef char *(*get_current_line_fn)(void);
+typedef void (*message_fn)(const char*, ...);
+typedef void (*update_display_fn)(void);
+typedef void (*free_fn)(void*);
+typedef void (*log_fn)(const char*, ...);
+
+/* Global extension state with ABI-stable function pointers */
 static struct {
-    struct uemacs_api *api;
+    /* ABI-stable API function pointers */
+    on_fn on;
+    off_fn off;
+    config_int_fn config_int;
+    config_bool_fn config_bool;
+    register_command_fn register_command;
+    unregister_command_fn unregister_command;
+    current_window_fn current_window;
+    window_at_row_fn window_at_row;
+    window_switch_fn window_switch;
+    screen_to_buffer_pos_fn screen_to_buffer_pos;
+    get_point_fn get_point;
+    set_point_fn set_point;
+    set_mark_fn set_mark;
+    scroll_up_fn scroll_up;
+    scroll_down_fn scroll_down;
+    get_word_at_point_fn get_word_at_point;
+    get_current_line_fn get_current_line;
+    message_fn message;
+    update_display_fn update_display;
+    free_fn free;
+    log_fn log_info;
+    log_fn log_error;
+
+    /* State */
     click_state_t last_click;
     selection_state_t selection;
     bool initialized;
@@ -122,42 +175,40 @@ static uint64_t get_timestamp_ms(void) {
 
 /* Position cursor at click location */
 static bool position_cursor(uint16_t x, uint16_t y) {
-    struct uemacs_api *api = g_mouse.api;
-    if (!api) return false;
+        if (!g_mouse.current_window) return false;
 
     /* Find window at click position */
-    struct window *wp = api->window_at_row(y);
+    struct window *wp = g_mouse.window_at_row(y);
     if (!wp) return false;
 
     /* Switch to window if different */
-    struct window *cur_wp = api->current_window();
+    struct window *cur_wp = g_mouse.current_window();
     if (wp != cur_wp) {
-        api->window_switch(wp);
+        g_mouse.window_switch(wp);
     }
 
     /* Convert screen position to buffer position */
     int buf_line, buf_offset;
-    if (api->screen_to_buffer_pos(wp, y, x, &buf_line, &buf_offset) != 0) {
+    if (g_mouse.screen_to_buffer_pos(wp, y, x, &buf_line, &buf_offset) != 0) {
         return false;  /* Click outside buffer content */
     }
 
     /* Position cursor */
-    api->set_point(buf_line, buf_offset + 1);  /* API uses 1-based columns */
-    api->update_display();
+    g_mouse.set_point(buf_line, buf_offset + 1);  /* API uses 1-based columns */
+    g_mouse.update_display();
 
     return true;
 }
 
 /* Handle single click */
 static bool handle_single_click(uint16_t x, uint16_t y, uint8_t mods) {
-    struct uemacs_api *api = g_mouse.api;
-    if (!api) return false;
+        if (!g_mouse.current_window) return false;
 
     /* Shift+click extends selection */
     if (mods & MOD_SHIFT) {
         /* Set mark at current position before moving */
         if (!g_mouse.selection.active) {
-            api->set_mark();
+            g_mouse.set_mark();
         }
         g_mouse.selection.active = true;
     } else {
@@ -182,8 +233,7 @@ static bool handle_single_click(uint16_t x, uint16_t y, uint8_t mods) {
 /* Handle double click - select word */
 static bool handle_double_click(uint16_t x, uint16_t y, uint8_t mods) {
     (void)mods;
-    struct uemacs_api *api = g_mouse.api;
-    if (!api) return false;
+        if (!g_mouse.current_window) return false;
 
     /* Position cursor first */
     if (!position_cursor(x, y)) {
@@ -191,33 +241,32 @@ static bool handle_double_click(uint16_t x, uint16_t y, uint8_t mods) {
     }
 
     /* Get word at point and select it */
-    char *word = api->get_word_at_point();
+    char *word = g_mouse.get_word_at_point();
     if (word) {
         /* Word exists - set mark at start, move to end */
         /* First, move back to word start */
         int line, col;
-        api->get_point(&line, &col);
+        g_mouse.get_point(&line, &col);
 
         /* Free the word - selection logic is simplified for now */
-        api->free(word);
+        g_mouse.free(word);
 
         /* Set mark at current position */
-        api->set_mark();
+        g_mouse.set_mark();
 
         /* This is simplified - ideally we'd have a select-word command */
         g_mouse.selection.active = true;
         g_mouse.selection.mode = SEL_WORD;
     }
 
-    api->update_display();
+    g_mouse.update_display();
     return true;
 }
 
 /* Handle triple click - select line */
 static bool handle_triple_click(uint16_t x, uint16_t y, uint8_t mods) {
     (void)mods;
-    struct uemacs_api *api = g_mouse.api;
-    if (!api) return false;
+        if (!g_mouse.current_window) return false;
 
     /* Position cursor at click position to get the right line */
     if (!position_cursor(x, y)) {
@@ -226,26 +275,26 @@ static bool handle_triple_click(uint16_t x, uint16_t y, uint8_t mods) {
 
     /* Get current line, move to beginning, set mark, move to end */
     int line, col;
-    api->get_point(&line, &col);
+    g_mouse.get_point(&line, &col);
 
     /* Move to beginning of line */
-    api->set_point(line, 1);
+    g_mouse.set_point(line, 1);
 
     /* Set mark */
-    api->set_mark();
+    g_mouse.set_mark();
 
     /* Move to end of line (get line content to find length) */
-    char *line_content = api->get_current_line();
+    char *line_content = g_mouse.get_current_line();
     if (line_content) {
         int line_len = (int)strlen(line_content);
-        api->set_point(line, line_len + 1);
-        api->free(line_content);
+        g_mouse.set_point(line, line_len + 1);
+        g_mouse.free(line_content);
     }
 
     g_mouse.selection.active = true;
     g_mouse.selection.mode = SEL_LINE;
 
-    api->update_display();
+    g_mouse.update_display();
     return true;
 }
 
@@ -261,28 +310,27 @@ static bool handle_drag(uint16_t x, uint16_t y, uint8_t mods) {
         return false;
     }
 
-    struct uemacs_api *api = g_mouse.api;
-    if (!api) return false;
+        if (!g_mouse.current_window) return false;
 
     /* Find window at current position */
-    struct window *wp = api->window_at_row(y);
+    struct window *wp = g_mouse.window_at_row(y);
     if (!wp) return false;
 
     /* Convert to buffer position */
     int buf_line, buf_offset;
-    if (api->screen_to_buffer_pos(wp, y, x, &buf_line, &buf_offset) != 0) {
+    if (g_mouse.screen_to_buffer_pos(wp, y, x, &buf_line, &buf_offset) != 0) {
         return false;
     }
 
     /* If this is the first drag after click, set the mark */
     if (!g_mouse.selection.active) {
-        api->set_mark();
+        g_mouse.set_mark();
         g_mouse.selection.active = true;
     }
 
     /* Move point to drag position */
-    api->set_point(buf_line, buf_offset + 1);
-    api->update_display();
+    g_mouse.set_point(buf_line, buf_offset + 1);
+    g_mouse.update_display();
 
     return true;
 }
@@ -306,17 +354,16 @@ static bool handle_release(uint16_t x, uint16_t y, uint8_t mods) {
 /* Handle scroll wheel */
 static bool handle_scroll(mouse_button_t btn, uint16_t x __attribute__((unused)),
                           uint16_t y, uint8_t mods) {
-    struct uemacs_api *api = g_mouse.api;
-    if (!api) return false;
+        if (!g_mouse.current_window) return false;
 
     /* Find window under cursor */
-    struct window *wp = api->window_at_row(y);
+    struct window *wp = g_mouse.window_at_row(y);
     if (!wp) return false;
 
     /* Switch to window if different */
-    struct window *cur_wp = api->current_window();
+    struct window *cur_wp = g_mouse.current_window();
     if (wp != cur_wp) {
-        api->window_switch(wp);
+        g_mouse.window_switch(wp);
     }
 
     /* Determine scroll amount */
@@ -328,10 +375,10 @@ static bool handle_scroll(mouse_button_t btn, uint16_t x __attribute__((unused))
     /* Scroll based on direction */
     switch (btn) {
         case MOUSE_SCROLL_UP:
-            api->scroll_up(scroll_amount);
+            g_mouse.scroll_up(scroll_amount);
             break;
         case MOUSE_SCROLL_DOWN:
-            api->scroll_down(scroll_amount);
+            g_mouse.scroll_down(scroll_amount);
             break;
         case MOUSE_SCROLL_LEFT:
         case MOUSE_SCROLL_RIGHT:
@@ -341,7 +388,7 @@ static bool handle_scroll(mouse_button_t btn, uint16_t x __attribute__((unused))
             return false;
     }
 
-    api->update_display();
+    g_mouse.update_display();
     return true;
 }
 
@@ -352,8 +399,7 @@ static bool handle_scroll(mouse_button_t btn, uint16_t x __attribute__((unused))
 /* Handle middle click - paste from kill ring (X11 tradition) */
 static bool handle_middle_click(uint16_t x, uint16_t y, uint8_t mods) {
     (void)mods;
-    struct uemacs_api *api = g_mouse.api;
-    if (!api) return false;
+        if (!g_mouse.current_window) return false;
 
     /* Position cursor at click location */
     if (!position_cursor(x, y)) {
@@ -362,7 +408,7 @@ static bool handle_middle_click(uint16_t x, uint16_t y, uint8_t mods) {
 
     /* Yank from kill ring - this would need a command execution mechanism */
     /* For now, just position the cursor */
-    api->message("Middle-click: cursor positioned (yank not implemented in extension)");
+    g_mouse.message("Middle-click: cursor positioned (yank not implemented in extension)");
 
     return true;
 }
@@ -376,7 +422,7 @@ static bool handle_middle_click(uint16_t x, uint16_t y, uint8_t mods) {
 static bool handle_mouse_event(uemacs_event_t *event, void *user_data) {
     (void)user_data;
 
-    if (!event || !event->data || !g_mouse.api) {
+    if (!event || !event->data || !g_mouse.current_window) {
         return false;
     }
 
@@ -470,8 +516,8 @@ static int cmd_mouse_enable(int f, int n) {
     (void)f;
     (void)n;
 
-    if (g_mouse.api) {
-        g_mouse.api->message("Mouse support is already enabled");
+    if (g_mouse.message) {
+        g_mouse.message("Mouse support is already enabled");
     }
     return true;
 }
@@ -481,8 +527,8 @@ static int cmd_mouse_disable(int f, int n) {
     (void)f;
     (void)n;
 
-    if (g_mouse.api) {
-        g_mouse.api->message("Mouse support cannot be disabled at runtime");
+    if (g_mouse.message) {
+        g_mouse.message("Mouse support cannot be disabled at runtime");
     }
     return true;
 }
@@ -492,8 +538,8 @@ static int cmd_mouse_status(int f, int n) {
     (void)f;
     (void)n;
 
-    if (g_mouse.api) {
-        g_mouse.api->message("Mouse: SGR 1006 mode enabled, selection=%s",
+    if (g_mouse.message) {
+        g_mouse.message("Mouse: SGR 1006 mode enabled, selection=%s",
                             g_mouse.selection.active ? "active" : "none");
     }
     return true;
@@ -503,64 +549,110 @@ static int cmd_mouse_status(int f, int n) {
  * Extension Entry Point
  * ============================================================================ */
 
-static int mouse_init(struct uemacs_api *api) {
-    if (!api) {
+static int mouse_init(struct uemacs_api *editor_api) {
+    /*
+     * Use get_function() for ABI stability.
+     */
+    if (!editor_api || !editor_api->get_function) {
+        fprintf(stderr, "c_mouse: Requires μEmacs with get_function() support\n");
         return -1;
     }
 
-    g_mouse.api = api;
+    /* Look up all API functions by name */
+    #define LOOKUP(name) editor_api->get_function(#name)
 
-    /* Read configuration from TOML [extension.mouse] section */
-    bool enabled = api->config_bool("mouse", "enabled", true);
-    if (!enabled) {
-        api->log_info("mouse_support: disabled by configuration");
-        return 0;  /* Not an error, just disabled */
+    g_mouse.on = (on_fn)LOOKUP(on);
+    g_mouse.off = (off_fn)LOOKUP(off);
+    g_mouse.config_int = (config_int_fn)LOOKUP(config_int);
+    g_mouse.config_bool = (config_bool_fn)LOOKUP(config_bool);
+    g_mouse.register_command = (register_command_fn)LOOKUP(register_command);
+    g_mouse.unregister_command = (unregister_command_fn)LOOKUP(unregister_command);
+    g_mouse.current_window = (current_window_fn)LOOKUP(current_window);
+    g_mouse.window_at_row = (window_at_row_fn)LOOKUP(window_at_row);
+    g_mouse.window_switch = (window_switch_fn)LOOKUP(window_switch);
+    g_mouse.screen_to_buffer_pos = (screen_to_buffer_pos_fn)LOOKUP(screen_to_buffer_pos);
+    g_mouse.get_point = (get_point_fn)LOOKUP(get_point);
+    g_mouse.set_point = (set_point_fn)LOOKUP(set_point);
+    g_mouse.set_mark = (set_mark_fn)LOOKUP(set_mark);
+    g_mouse.scroll_up = (scroll_up_fn)LOOKUP(scroll_up);
+    g_mouse.scroll_down = (scroll_down_fn)LOOKUP(scroll_down);
+    g_mouse.get_word_at_point = (get_word_at_point_fn)LOOKUP(get_word_at_point);
+    g_mouse.get_current_line = (get_current_line_fn)LOOKUP(get_current_line);
+    g_mouse.message = (message_fn)LOOKUP(message);
+    g_mouse.update_display = (update_display_fn)LOOKUP(update_display);
+    g_mouse.free = (free_fn)LOOKUP(free);
+    g_mouse.log_info = (log_fn)LOOKUP(log_info);
+    g_mouse.log_error = (log_fn)LOOKUP(log_error);
+
+    #undef LOOKUP
+
+    /* Verify critical functions were found */
+    if (!g_mouse.on || !g_mouse.register_command || !g_mouse.log_info) {
+        fprintf(stderr, "c_mouse: Missing critical API functions\n");
+        return -1;
     }
 
-    scroll_lines = api->config_int("mouse", "scroll_lines", 3);
-    scroll_lines_fast = scroll_lines * 3;
-    double_click_ms = api->config_int("mouse", "double_click_ms", 400);
-    triple_click_ms = api->config_int("mouse", "triple_click_ms", 600);
+    /* Read configuration from TOML [extension.mouse] section */
+    if (g_mouse.config_bool) {
+        bool enabled = g_mouse.config_bool("mouse", "enabled", true);
+        if (!enabled) {
+            g_mouse.log_info("mouse_support: disabled by configuration");
+            return 0;  /* Not an error, just disabled */
+        }
+    }
+
+    if (g_mouse.config_int) {
+        scroll_lines = g_mouse.config_int("mouse", "scroll_lines", 3);
+        scroll_lines_fast = scroll_lines * 3;
+        double_click_ms = g_mouse.config_int("mouse", "double_click_ms", 400);
+        triple_click_ms = g_mouse.config_int("mouse", "triple_click_ms", 600);
+    }
 
     /* Register mouse event handler with event bus */
-    if (api->on(UEMACS_EVT_INPUT_MOUSE, (uemacs_event_fn)handle_mouse_event, nullptr, 0) != 0) {
-        api->log_error("mouse_support: failed to register event handler");
+    if (g_mouse.on(UEMACS_EVT_INPUT_MOUSE, (uemacs_event_fn)handle_mouse_event, NULL, 0) != 0) {
+        g_mouse.log_error("mouse_support: failed to register event handler");
         return -1;
     }
 
     /* Register commands */
-    api->register_command("mouse-enable", cmd_mouse_enable);
-    api->register_command("mouse-disable", cmd_mouse_disable);
-    api->register_command("mouse-status", cmd_mouse_status);
+    g_mouse.register_command("mouse-enable", cmd_mouse_enable);
+    g_mouse.register_command("mouse-disable", cmd_mouse_disable);
+    g_mouse.register_command("mouse-status", cmd_mouse_status);
 
     /* Initialize state */
     memset(&g_mouse.last_click, 0, sizeof(g_mouse.last_click));
     memset(&g_mouse.selection, 0, sizeof(g_mouse.selection));
     g_mouse.initialized = true;
 
-    api->log_info("mouse_support: C23 extension v1.1 loaded (event bus API)");
-    api->log_info("  scroll_lines=%d, double_click=%dms, triple_click=%dms",
+    g_mouse.log_info("c_mouse v4.0.0 loaded (ABI-stable, SGR 1006/1016)");
+    g_mouse.log_info("  scroll_lines=%d, double_click=%dms, triple_click=%dms",
                   scroll_lines, double_click_ms, triple_click_ms);
     return 0;
 }
 
 static void mouse_cleanup(void) {
-    if (g_mouse.api && g_mouse.initialized) {
-        g_mouse.api->off(UEMACS_EVT_INPUT_MOUSE, (uemacs_event_fn)handle_mouse_event);
-        g_mouse.api->unregister_command("mouse-enable");
-        g_mouse.api->unregister_command("mouse-disable");
-        g_mouse.api->unregister_command("mouse-status");
-        g_mouse.api->log_info("mouse_support: extension unloaded");
+    if (g_mouse.initialized) {
+        if (g_mouse.off) {
+            g_mouse.off(UEMACS_EVT_INPUT_MOUSE, (uemacs_event_fn)handle_mouse_event);
+        }
+        if (g_mouse.unregister_command) {
+            g_mouse.unregister_command("mouse-enable");
+            g_mouse.unregister_command("mouse-disable");
+            g_mouse.unregister_command("mouse-status");
+        }
+        if (g_mouse.log_info) {
+            g_mouse.log_info("mouse_support: extension unloaded");
+        }
     }
     g_mouse.initialized = false;
 }
 
 /* Extension descriptor */
 static struct uemacs_extension mouse_ext = {
-    .api_version = 3,
+    .api_version = 4  /* ABI-stable API */,
     .name = "c_mouse",
-    .version = "1.1.0",
-    .description = "Comprehensive C23 mouse support with SGR 1006/1016 (event bus API)",
+    .version = "4.0.0",
+    .description = "Comprehensive C23 mouse support with SGR 1006/1016 (ABI-stable)",
     .init = mouse_init,
     .cleanup = mouse_cleanup,
 };

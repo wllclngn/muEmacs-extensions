@@ -286,3 +286,206 @@ function fortran_git_add(f, n) bind(C, name='fortran_git_add') result(ret)
     end if
     ret = 1
 end function fortran_git_add
+
+function fortran_git_status_full(f, n) bind(C, name='fortran_git_status_full') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+    character(len=16384) :: output
+
+    output = exec_cmd('git status 2>/dev/null || echo "Not a git repository"')
+    call show_in_buffer('*git-status*', output)
+    call msg('git-status (full)')
+    ret = 1
+end function fortran_git_status_full
+
+function fortran_git_stage(f, n) bind(C, name='fortran_git_stage') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+    type(c_ptr) :: bp, fn_ptr
+    character(len=512) :: filename
+    character(len=16384) :: output
+    character(len=600) :: cmd
+
+    bp = bridge_current_buffer()
+    if (.not. c_associated(bp)) then
+        call msg('git-stage: No buffer')
+        ret = 0
+        return
+    end if
+
+    fn_ptr = bridge_buffer_filename(bp)
+    filename = c_to_f_string(fn_ptr)
+    if (len_trim(filename) == 0) then
+        call msg('git-stage: No file')
+        ret = 0
+        return
+    end if
+
+    cmd = 'git add "' // trim(filename) // '" 2>&1'
+    output = exec_cmd(cmd)
+
+    if (len_trim(output) == 0) then
+        call msg('git-stage: Staged ' // trim(filename))
+    else
+        call msg('git-stage: ' // trim(output(1:min(len_trim(output), 60))))
+    end if
+    ret = 1
+end function fortran_git_stage
+
+function fortran_git_unstage(f, n) bind(C, name='fortran_git_unstage') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+    type(c_ptr) :: bp, fn_ptr
+    character(len=512) :: filename
+    character(len=16384) :: output
+    character(len=600) :: cmd
+
+    bp = bridge_current_buffer()
+    if (.not. c_associated(bp)) then
+        call msg('git-unstage: No buffer')
+        ret = 0
+        return
+    end if
+
+    fn_ptr = bridge_buffer_filename(bp)
+    filename = c_to_f_string(fn_ptr)
+    if (len_trim(filename) == 0) then
+        call msg('git-unstage: No file')
+        ret = 0
+        return
+    end if
+
+    cmd = 'git restore --staged "' // trim(filename) // '" 2>&1'
+    output = exec_cmd(cmd)
+
+    if (len_trim(output) == 0) then
+        call msg('git-unstage: Unstaged ' // trim(filename))
+    else
+        call msg('git-unstage: ' // trim(output(1:min(len_trim(output), 60))))
+    end if
+    ret = 1
+end function fortran_git_unstage
+
+function fortran_git_commit(f, n) bind(C, name='fortran_git_commit') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+    character(len=16384) :: output
+
+    ! Note: Real commit would need message input - this opens editor
+    output = exec_cmd('git commit 2>&1')
+    if (index(output, 'nothing to commit') > 0) then
+        call msg('git-commit: Nothing to commit')
+    else if (len_trim(output) > 0) then
+        call msg('git-commit: ' // trim(output(1:min(len_trim(output), 60))))
+    end if
+    ret = 1
+end function fortran_git_commit
+
+function fortran_git_pull(f, n) bind(C, name='fortran_git_pull') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+    character(len=16384) :: output
+
+    call msg('git-pull: Pulling...')
+    output = exec_cmd('git pull 2>&1')
+    if (index(output, 'Already up to date') > 0) then
+        call msg('git-pull: Already up to date')
+    else
+        call show_in_buffer('*git-pull*', output)
+        call msg('git-pull: Complete')
+    end if
+    ret = 1
+end function fortran_git_pull
+
+function fortran_git_push(f, n) bind(C, name='fortran_git_push') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+    character(len=16384) :: output
+
+    call msg('git-push: Pushing...')
+    output = exec_cmd('git push 2>&1')
+    if (index(output, 'Everything up-to-date') > 0) then
+        call msg('git-push: Everything up-to-date')
+    else
+        call msg('git-push: ' // trim(output(1:min(len_trim(output), 60))))
+    end if
+    ret = 1
+end function fortran_git_push
+
+function fortran_git_branch(f, n) bind(C, name='fortran_git_branch') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+    character(len=16384) :: output
+
+    output = exec_cmd('git branch -a 2>/dev/null || echo "Not a git repository"')
+    call show_in_buffer('*git-branch*', output)
+    call msg('git-branch')
+    ret = 1
+end function fortran_git_branch
+
+function fortran_git_stash(f, n) bind(C, name='fortran_git_stash') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+    character(len=16384) :: output
+
+    output = exec_cmd('git stash 2>&1')
+    if (index(output, 'No local changes') > 0) then
+        call msg('git-stash: No local changes to save')
+    else
+        call msg('git-stash: ' // trim(output(1:min(len_trim(output), 60))))
+    end if
+    ret = 1
+end function fortran_git_stash
+
+function fortran_git_stash_pop(f, n) bind(C, name='fortran_git_stash_pop') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+    character(len=16384) :: output
+
+    output = exec_cmd('git stash pop 2>&1')
+    if (index(output, 'No stash entries') > 0) then
+        call msg('git-stash-pop: No stash entries found')
+    else
+        call msg('git-stash-pop: ' // trim(output(1:min(len_trim(output), 60))))
+    end if
+    ret = 1
+end function fortran_git_stash_pop
+
+function fortran_git_goto(f, n) bind(C, name='fortran_git_goto') result(ret)
+    use git_commands
+    use, intrinsic :: iso_c_binding
+    implicit none
+    integer(c_int), value :: f, n
+    integer(c_int) :: ret
+
+    ! Placeholder - would jump to file at line from git output
+    call msg('git-goto: Not yet implemented')
+    ret = 1
+end function fortran_git_goto

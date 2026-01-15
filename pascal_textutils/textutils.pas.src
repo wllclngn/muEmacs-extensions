@@ -1,0 +1,431 @@
+{
+  Text Utilities Extension for μEmacs
+  Out-of-process Pascal extension for text statistics, encoding, and transformations
+
+  Commands:
+    txt-stats      - Show word/line/char count for buffer
+    txt-base64-enc - Base64 encode selection or line
+    txt-base64-dec - Base64 decode selection or line
+    txt-rot13      - ROT13 encode/decode current line
+    txt-upper      - Uppercase current line
+    txt-lower      - Lowercase current line
+    txt-reverse    - Reverse characters in current line
+}
+
+library textutils;
+
+{$mode objfpc}{$H+}
+
+uses
+  ctypes, SysUtils, Classes;
+
+{ C bridge imports }
+procedure bridge_message(msg: PChar); cdecl; external;
+function bridge_current_buffer: Pointer; cdecl; external;
+function bridge_buffer_contents(bp: Pointer; var len: csize_t): PChar; cdecl; external;
+function bridge_get_current_line: PChar; cdecl; external;
+procedure bridge_get_point(var line, col: cint); cdecl; external;
+procedure bridge_set_point(line, col: cint); cdecl; external;
+function bridge_buffer_insert(text: PChar; len: csize_t): cint; cdecl; external;
+procedure bridge_delete_line; cdecl; external;
+
+{ Helper: Send message }
+procedure Msg(const S: string);
+begin
+  bridge_message(PChar(S));
+end;
+
+{ Base64 encoding table }
+const
+  Base64Table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+{ Base64 encode }
+function Base64Encode(const Input: string): string;
+var
+  I, Len: Integer;
+  B1, B2, B3: Byte;
+begin
+  Result := '';
+  Len := Length(Input);
+  I := 1;
+
+  while I <= Len do
+  begin
+    B1 := Ord(Input[I]);
+    Inc(I);
+
+    Result := Result + Base64Table[(B1 shr 2) + 1];
+
+    if I <= Len then
+    begin
+      B2 := Ord(Input[I]);
+      Inc(I);
+      Result := Result + Base64Table[((B1 and 3) shl 4) or (B2 shr 4) + 1];
+
+      if I <= Len then
+      begin
+        B3 := Ord(Input[I]);
+        Inc(I);
+        Result := Result + Base64Table[((B2 and 15) shl 2) or (B3 shr 6) + 1];
+        Result := Result + Base64Table[(B3 and 63) + 1];
+      end
+      else
+      begin
+        Result := Result + Base64Table[((B2 and 15) shl 2) + 1];
+        Result := Result + '=';
+      end;
+    end
+    else
+    begin
+      Result := Result + Base64Table[((B1 and 3) shl 4) + 1];
+      Result := Result + '==';
+    end;
+  end;
+end;
+
+{ Base64 decode }
+function Base64Decode(const Input: string): string;
+var
+  I, Len: Integer;
+  B1, B2, B3, B4: Integer;
+
+  function DecodeChar(C: Char): Integer;
+  begin
+    if (C >= 'A') and (C <= 'Z') then Result := Ord(C) - Ord('A')
+    else if (C >= 'a') and (C <= 'z') then Result := Ord(C) - Ord('a') + 26
+    else if (C >= '0') and (C <= '9') then Result := Ord(C) - Ord('0') + 52
+    else if C = '+' then Result := 62
+    else if C = '/' then Result := 63
+    else Result := -1;
+  end;
+
+begin
+  Result := '';
+  Len := Length(Input);
+  I := 1;
+
+  while I <= Len do
+  begin
+    { Skip whitespace }
+    while (I <= Len) and (Input[I] in [#9, #10, #13, ' ']) do Inc(I);
+    if I > Len then Break;
+
+    B1 := DecodeChar(Input[I]); Inc(I);
+    if B1 < 0 then Continue;
+
+    while (I <= Len) and (Input[I] in [#9, #10, #13, ' ']) do Inc(I);
+    if I > Len then Break;
+
+    B2 := DecodeChar(Input[I]); Inc(I);
+    if B2 < 0 then Continue;
+
+    Result := Result + Chr((B1 shl 2) or (B2 shr 4));
+
+    while (I <= Len) and (Input[I] in [#9, #10, #13, ' ']) do Inc(I);
+    if I > Len then Break;
+    if Input[I] = '=' then Break;
+
+    B3 := DecodeChar(Input[I]); Inc(I);
+    if B3 < 0 then Continue;
+
+    Result := Result + Chr(((B2 and 15) shl 4) or (B3 shr 2));
+
+    while (I <= Len) and (Input[I] in [#9, #10, #13, ' ']) do Inc(I);
+    if I > Len then Break;
+    if Input[I] = '=' then Break;
+
+    B4 := DecodeChar(Input[I]); Inc(I);
+    if B4 < 0 then Continue;
+
+    Result := Result + Chr(((B3 and 3) shl 6) or B4);
+  end;
+end;
+
+{ ROT13 transformation }
+function ROT13(const Input: string): string;
+var
+  I: Integer;
+  C: Char;
+begin
+  Result := Input;
+  for I := 1 to Length(Result) do
+  begin
+    C := Result[I];
+    if (C >= 'A') and (C <= 'Z') then
+      Result[I] := Chr(((Ord(C) - Ord('A') + 13) mod 26) + Ord('A'))
+    else if (C >= 'a') and (C <= 'z') then
+      Result[I] := Chr(((Ord(C) - Ord('a') + 13) mod 26) + Ord('a'));
+  end;
+end;
+
+{ Reverse string }
+function ReverseStr(const Input: string): string;
+var
+  I, Len: Integer;
+begin
+  Len := Length(Input);
+  SetLength(Result, Len);
+  for I := 1 to Len do
+    Result[Len - I + 1] := Input[I];
+end;
+
+{ txt-stats: Show buffer statistics }
+function pascal_txt_stats(f, n: cint): cint; cdecl;
+var
+  BP: Pointer;
+  Contents: PChar;
+  Len: csize_t;
+  S: string;
+  Words, Lines, Chars, I: Integer;
+  InWord: Boolean;
+begin
+  Result := 0;
+  BP := bridge_current_buffer;
+  if BP = nil then
+  begin
+    Msg('txt-stats: No buffer');
+    Exit;
+  end;
+
+  Len := 0;
+  Contents := bridge_buffer_contents(BP, Len);
+  if (Contents = nil) or (Len = 0) then
+  begin
+    Msg('txt-stats: Empty buffer');
+    Result := 1;
+    Exit;
+  end;
+
+  S := StrPas(Contents);
+  Chars := Length(S);
+  Words := 0;
+  Lines := 1;
+  InWord := False;
+
+  for I := 1 to Chars do
+  begin
+    case S[I] of
+      #10: begin
+        Inc(Lines);
+        InWord := False;
+      end;
+      ' ', #9, #13: InWord := False;
+    else
+      if not InWord then
+      begin
+        Inc(Words);
+        InWord := True;
+      end;
+    end;
+  end;
+
+  Msg(Format('Stats: %d lines, %d words, %d chars', [Lines, Words, Chars]));
+  Result := 1;
+end;
+
+{ txt-base64-enc: Base64 encode current line }
+function pascal_txt_base64_enc(f, n: cint): cint; cdecl;
+var
+  LinePtr: PChar;
+  Line, Encoded: string;
+  CurLine, CurCol: cint;
+begin
+  Result := 0;
+
+  LinePtr := bridge_get_current_line;
+  if LinePtr = nil then
+  begin
+    Msg('txt-base64-enc: No line');
+    Exit;
+  end;
+
+  Line := StrPas(LinePtr);
+  { Remove trailing newline if present }
+  if (Length(Line) > 0) and (Line[Length(Line)] = #10) then
+    SetLength(Line, Length(Line) - 1);
+
+  Encoded := Base64Encode(Line);
+
+  bridge_get_point(CurLine, CurCol);
+  bridge_set_point(CurLine, 0);
+  bridge_delete_line;
+  Encoded := Encoded + #10;
+  bridge_buffer_insert(PChar(Encoded), Length(Encoded));
+  bridge_set_point(CurLine, 0);
+
+  Msg('txt-base64-enc: Encoded ' + IntToStr(Length(Line)) + ' chars');
+  Result := 1;
+end;
+
+{ txt-base64-dec: Base64 decode current line }
+function pascal_txt_base64_dec(f, n: cint): cint; cdecl;
+var
+  LinePtr: PChar;
+  Line, Decoded: string;
+  CurLine, CurCol: cint;
+begin
+  Result := 0;
+
+  LinePtr := bridge_get_current_line;
+  if LinePtr = nil then
+  begin
+    Msg('txt-base64-dec: No line');
+    Exit;
+  end;
+
+  Line := StrPas(LinePtr);
+  { Remove trailing newline if present }
+  if (Length(Line) > 0) and (Line[Length(Line)] = #10) then
+    SetLength(Line, Length(Line) - 1);
+
+  Decoded := Base64Decode(Line);
+
+  bridge_get_point(CurLine, CurCol);
+  bridge_set_point(CurLine, 0);
+  bridge_delete_line;
+  Decoded := Decoded + #10;
+  bridge_buffer_insert(PChar(Decoded), Length(Decoded));
+  bridge_set_point(CurLine, 0);
+
+  Msg('txt-base64-dec: Decoded to ' + IntToStr(Length(Decoded) - 1) + ' chars');
+  Result := 1;
+end;
+
+{ txt-rot13: ROT13 encode/decode current line }
+function pascal_txt_rot13(f, n: cint): cint; cdecl;
+var
+  LinePtr: PChar;
+  Line, Rotated: string;
+  CurLine, CurCol: cint;
+begin
+  Result := 0;
+
+  LinePtr := bridge_get_current_line;
+  if LinePtr = nil then
+  begin
+    Msg('txt-rot13: No line');
+    Exit;
+  end;
+
+  Line := StrPas(LinePtr);
+  Rotated := ROT13(Line);
+
+  bridge_get_point(CurLine, CurCol);
+  bridge_set_point(CurLine, 0);
+  bridge_delete_line;
+  bridge_buffer_insert(PChar(Rotated), Length(Rotated));
+  bridge_set_point(CurLine, CurCol);
+
+  Msg('txt-rot13: Applied');
+  Result := 1;
+end;
+
+{ txt-upper: Uppercase current line }
+function pascal_txt_upper(f, n: cint): cint; cdecl;
+var
+  LinePtr: PChar;
+  Line, Upper: string;
+  CurLine, CurCol: cint;
+begin
+  Result := 0;
+
+  LinePtr := bridge_get_current_line;
+  if LinePtr = nil then
+  begin
+    Msg('txt-upper: No line');
+    Exit;
+  end;
+
+  Line := StrPas(LinePtr);
+  Upper := UpperCase(Line);
+
+  bridge_get_point(CurLine, CurCol);
+  bridge_set_point(CurLine, 0);
+  bridge_delete_line;
+  bridge_buffer_insert(PChar(Upper), Length(Upper));
+  bridge_set_point(CurLine, CurCol);
+
+  Msg('txt-upper: Applied');
+  Result := 1;
+end;
+
+{ txt-lower: Lowercase current line }
+function pascal_txt_lower(f, n: cint): cint; cdecl;
+var
+  LinePtr: PChar;
+  Line, Lower: string;
+  CurLine, CurCol: cint;
+begin
+  Result := 0;
+
+  LinePtr := bridge_get_current_line;
+  if LinePtr = nil then
+  begin
+    Msg('txt-lower: No line');
+    Exit;
+  end;
+
+  Line := StrPas(LinePtr);
+  Lower := LowerCase(Line);
+
+  bridge_get_point(CurLine, CurCol);
+  bridge_set_point(CurLine, 0);
+  bridge_delete_line;
+  bridge_buffer_insert(PChar(Lower), Length(Lower));
+  bridge_set_point(CurLine, CurCol);
+
+  Msg('txt-lower: Applied');
+  Result := 1;
+end;
+
+{ txt-reverse: Reverse current line }
+function pascal_txt_reverse(f, n: cint): cint; cdecl;
+var
+  LinePtr: PChar;
+  Line, Rev: string;
+  CurLine, CurCol: cint;
+  HasNewline: Boolean;
+begin
+  Result := 0;
+
+  LinePtr := bridge_get_current_line;
+  if LinePtr = nil then
+  begin
+    Msg('txt-reverse: No line');
+    Exit;
+  end;
+
+  Line := StrPas(LinePtr);
+
+  { Preserve trailing newline }
+  HasNewline := (Length(Line) > 0) and (Line[Length(Line)] = #10);
+  if HasNewline then
+    SetLength(Line, Length(Line) - 1);
+
+  Rev := ReverseStr(Line);
+  if HasNewline then
+    Rev := Rev + #10;
+
+  bridge_get_point(CurLine, CurCol);
+  bridge_set_point(CurLine, 0);
+  bridge_delete_line;
+  bridge_buffer_insert(PChar(Rev), Length(Rev));
+  bridge_set_point(CurLine, 0);
+
+  Msg('txt-reverse: Applied');
+  Result := 1;
+end;
+
+{ Export functions }
+exports
+  pascal_txt_stats,
+  pascal_txt_base64_enc,
+  pascal_txt_base64_dec,
+  pascal_txt_rot13,
+  pascal_txt_upper,
+  pascal_txt_lower,
+  pascal_txt_reverse;
+
+begin
+  { No initialization needed }
+end.

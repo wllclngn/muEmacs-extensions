@@ -4,6 +4,13 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // API version option - passed by uep_build.py via -Dapi_version=N
+    const api_version = b.option(i32, "api_version", "μEmacs API version") orelse 4;
+
+    // Create options module to pass api_version to main.zig
+    const options = b.addOptions();
+    options.addOption(i32, "api_version", api_version);
+
     const lib = b.addLibrary(.{
         .name = "zig_treesitter",
         .root_module = b.createModule(.{
@@ -14,6 +21,9 @@ pub fn build(b: *std.Build) void {
         }),
         .linkage = .dynamic,
     });
+
+    // Add options module so main.zig can import it
+    lib.root_module.addImport("config", options.createModule());
 
     // Link tree-sitter core
     lib.linkSystemLibrary("tree-sitter");

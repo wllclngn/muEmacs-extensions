@@ -1,7 +1,7 @@
 /*
  * lint.c - Unified Linter Extension for muEmacs
  *
- * API Version: 3 (Event Bus)
+ * API Version: 4 (ABI-Stable Named Lookup)
  *
  * Aggregates diagnostics from three sources:
  * 1. Pattern rules (Thompson NFA, adapted from muEmacs core)
@@ -18,6 +18,9 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdarg.h>
+
+#include <uep/extension.h>
+#include <uep/extension_api.h>
 
 /* ============================================================================
  * Thompson NFA Engine (adapted from muEmacs nfa.c for string matching)
@@ -340,113 +343,57 @@ static nfa_match_t nfa_search(const nfa_program_t *prog, const char *str, int le
 }
 
 /* ============================================================================
- * API Types (mirrors extension_api.h)
+ * ABI-Stable API Access
+ *
+ * Instead of using struct offsets (which break when the API struct changes),
+ * we look up functions by name at init time.
  * ============================================================================ */
 
-struct buffer;
-struct window;
-struct uemacs_event;
+/* Function pointer types for the API functions we use */
+typedef int (*on_fn)(const char*, uemacs_event_fn, void*, int);
+typedef int (*off_fn)(const char*, uemacs_event_fn);
+typedef int (*register_command_fn)(const char*, uemacs_cmd_fn);
+typedef int (*unregister_command_fn)(const char*);
+typedef struct buffer *(*current_buffer_fn)(void);
+typedef char *(*buffer_contents_fn)(struct buffer*, size_t*);
+typedef const char *(*buffer_filename_fn)(struct buffer*);
+typedef const char *(*buffer_name_fn)(struct buffer*);
+typedef int (*buffer_insert_fn)(const char*, size_t);
+typedef struct buffer *(*buffer_create_fn)(const char*);
+typedef int (*buffer_switch_fn)(struct buffer*);
+typedef int (*buffer_clear_fn)(struct buffer*);
+typedef void (*get_point_fn)(int*, int*);
+typedef void (*set_point_fn)(int, int);
+typedef char *(*get_current_line_fn)(void);
+typedef int (*find_file_line_fn)(const char*, int);
+typedef void (*message_fn)(const char*, ...);
+typedef void (*free_fn)(void*);
+typedef void (*log_fn)(const char*, ...);
 
-typedef struct uemacs_event {
-    const char *name;
-    void *data;
-    size_t data_size;
-    bool consumed;
-} uemacs_event_t;
-
-typedef bool (*uemacs_event_fn)(uemacs_event_t *event, void *user_data);
-typedef int (*uemacs_cmd_fn)(int f, int n);
-
-struct uemacs_api {
-    int api_version;
-
-    /* Event Bus */
-    int (*on)(const char *event, uemacs_event_fn handler, void *user_data, int priority);
-    int (*off)(const char *event, uemacs_event_fn handler);
-    bool (*emit)(const char *event, void *data);
-
-    /* Configuration */
-    int (*config_int)(const char *ext_name, const char *key, int default_val);
-    bool (*config_bool)(const char *ext_name, const char *key, bool default_val);
-    const char *(*config_string)(const char *ext_name, const char *key, const char *default_val);
-
-    /* Command Registration */
-    int (*register_command)(const char *name, uemacs_cmd_fn func);
-    int (*unregister_command)(const char *name);
-
-    /* Buffer Operations */
-    struct buffer *(*current_buffer)(void);
-    struct buffer *(*find_buffer)(const char *name);
-    char *(*buffer_contents)(struct buffer *bp, size_t *len);
-    const char *(*buffer_filename)(struct buffer *bp);
-    const char *(*buffer_name)(struct buffer *bp);
-    bool (*buffer_modified)(struct buffer *bp);
-    int (*buffer_insert)(const char *text, size_t len);
-    int (*buffer_insert_at)(struct buffer *bp, int line, int col, const char *text, size_t len);
-    struct buffer *(*buffer_create)(const char *name);
-    int (*buffer_switch)(struct buffer *bp);
-    int (*buffer_clear)(struct buffer *bp);
-
-    /* Cursor/Point */
-    void (*get_point)(int *line, int *col);
-    void (*set_point)(int line, int col);
-    int (*get_line_count)(struct buffer *bp);
-    char *(*get_word_at_point)(void);
-    char *(*get_current_line)(void);
-
-    /* Window */
-    struct window *(*current_window)(void);
-    int (*window_count)(void);
-    int (*window_set_wrap_col)(struct window *wp, int col);
-    struct window *(*window_at_row)(int row);
-    int (*window_switch)(struct window *wp);
-
-    /* Mouse/Cursor Helpers */
-    int (*screen_to_buffer_pos)(struct window *wp, int screen_row, int screen_col,
-                                int *buf_line, int *buf_offset);
-    int (*set_mark)(void);
-    int (*scroll_up)(int lines);
-    int (*scroll_down)(int lines);
-
-    /* UI */
-    void (*message)(const char *fmt, ...);
-    void (*vmessage)(const char *fmt, void *ap);
-    int (*prompt)(const char *prompt, char *buf, size_t buflen);
-    int (*prompt_yn)(const char *prompt);
-    void (*update_display)(void);
-
-    /* File */
-    int (*find_file_line)(const char *path, int line);
-
-    /* Shell */
-    int (*shell_command)(const char *cmd, char **output, size_t *len);
-
-    /* Memory */
-    void *(*alloc)(size_t size);
-    void (*free)(void *ptr);
-    char *(*strdup)(const char *s);
-
-    /* Logging */
-    void (*log_info)(const char *fmt, ...);
-    void (*log_warn)(const char *fmt, ...);
-    void (*log_error)(const char *fmt, ...);
-    void (*log_debug)(const char *fmt, ...);
-
-    /* Syntax */
-    void *syntax_register_lexer;
-    void *syntax_unregister_lexer;
-    void *syntax_add_token;
-    void *syntax_invalidate_buffer;
-};
-
-typedef struct {
-    int api_version;
-    const char *name;
-    const char *version;
-    const char *description;
-    int (*init)(struct uemacs_api *);
-    void (*cleanup)(void);
-} uemacs_extension;
+/* Our local API - only the functions we actually use */
+static struct {
+    on_fn on;
+    off_fn off;
+    register_command_fn register_command;
+    unregister_command_fn unregister_command;
+    current_buffer_fn current_buffer;
+    buffer_contents_fn buffer_contents;
+    buffer_filename_fn buffer_filename;
+    buffer_name_fn buffer_name;
+    buffer_insert_fn buffer_insert;
+    buffer_create_fn buffer_create;
+    buffer_switch_fn buffer_switch;
+    buffer_clear_fn buffer_clear;
+    get_point_fn get_point;
+    set_point_fn set_point;
+    get_current_line_fn get_current_line;
+    find_file_line_fn find_file_line;
+    message_fn message;
+    free_fn free;
+    log_fn log_info;
+    log_fn log_warn;
+    log_fn log_error;
+} api;
 
 /* ============================================================================
  * Diagnostic Types
@@ -636,7 +583,6 @@ static pattern_rule_t pattern_rules[] = {
  * Global State
  * ============================================================================ */
 
-static struct uemacs_api *g_api = NULL;
 static buffer_diagnostics_t g_buffer_diags[MAX_BUFFERS];
 static int g_buffer_count = 0;
 
@@ -731,8 +677,8 @@ static void compile_pattern_rules(void) {
             r->valid = true;
         } else {
             r->valid = false;
-            if (g_api && g_api->log_warn) {
-                g_api->log_warn("lint: Failed to compile pattern '%s'", r->name);
+            if (api.log_warn) {
+                api.log_warn("lint: Failed to compile pattern '%s'", r->name);
             }
         }
     }
@@ -768,17 +714,17 @@ static bool matches_filetype(const char *filename, const char *filetypes) {
 }
 
 static void run_pattern_rules(struct buffer *bp) {
-    if (!g_api) return;
+    if (!api.current_buffer) return;
 
     /* Clear previous pattern diagnostics */
     clear_source_diags(bp, "pattern");
 
     /* Get buffer contents */
     size_t len;
-    char *contents = g_api->buffer_contents(bp, &len);
+    char *contents = api.buffer_contents(bp, &len);
     if (!contents) return;
 
-    const char *filename = g_api->buffer_filename(bp);
+    const char *filename = api.buffer_filename(bp);
 
     /* Process line by line */
     int line_num = 1;
@@ -824,7 +770,7 @@ static void run_pattern_rules(struct buffer *bp) {
         line_num++;
     }
 
-    g_api->free(contents);
+    api.free(contents);
 }
 
 /* ============================================================================
@@ -849,7 +795,7 @@ typedef struct {
 
 static bool on_lsp_diagnostics(uemacs_event_t *event, void *user_data) {
     (void)user_data;
-    if (!event || !event->data || !g_api) return false;
+    if (!event || !event->data ) return false;
 
     lsp_diag_event_t *lsp_event = event->data;
 
@@ -859,10 +805,10 @@ static bool on_lsp_diagnostics(uemacs_event_t *event, void *user_data) {
     if (strncmp(path, "file://", 7) == 0) path += 7;
 
     /* Find buffer with matching filename */
-    struct buffer *bp = g_api->current_buffer();
+    struct buffer *bp = api.current_buffer();
     if (!bp) return false;
 
-    const char *buf_file = g_api->buffer_filename(bp);
+    const char *buf_file = api.buffer_filename(bp);
     if (!buf_file || strcmp(buf_file, path) != 0) {
         /* TODO: Search all buffers */
         return false;
@@ -914,7 +860,7 @@ typedef struct {
 
 static bool on_treesitter_lint(uemacs_event_t *event, void *user_data) {
     (void)user_data;
-    if (!event || !event->data || !g_api) return false;
+    if (!event || !event->data ) return false;
 
     ts_lint_event_t *ts_event = event->data;
     struct buffer *bp = ts_event->buffer;
@@ -943,8 +889,8 @@ static bool on_treesitter_lint(uemacs_event_t *event, void *user_data) {
 
     sort_diagnostics(bp);
 
-    if (g_api->log_info) {
-        g_api->log_info("lint: Received %d diagnostics from tree-sitter", ts_event->count);
+    if (api.log_info) {
+        api.log_info("lint: Received %d diagnostics from tree-sitter", ts_event->count);
     }
 
     return false; /* Don't consume */
@@ -961,22 +907,22 @@ static char g_lint_source_file[512] = {0};
 
 /* Check if we're in the *lint* buffer */
 static bool in_lint_buffer(void) {
-    if (!g_api || !g_api->current_buffer || !g_api->buffer_name) return false;
+    if (!api.current_buffer || !api.buffer_name) return false;
 
-    struct buffer *bp = g_api->current_buffer();
+    struct buffer *bp = api.current_buffer();
     if (!bp) return false;
 
-    const char *name = g_api->buffer_name(bp);
+    const char *name = api.buffer_name(bp);
     return name && strcmp(name, LINT_BUFFER_NAME) == 0;
 }
 
 /* Parse current line and jump to source location */
 static bool do_lint_goto(void) {
-    if (!g_api || !g_api->get_current_line) return false;
+    if (!api.get_current_line) return false;
 
-    char *line = g_api->get_current_line();
+    char *line = api.get_current_line();
     if (!line) {
-        g_api->message("No line content");
+        api.message("No line content");
         return false;
     }
 
@@ -985,8 +931,8 @@ static bool do_lint_goto(void) {
     while (*p == ' ') p++;
 
     if (!isdigit(*p)) {
-        g_api->message("Not on a result line");
-        g_api->free(line);
+        api.message("Not on a result line");
+        api.free(line);
         return false;
     }
 
@@ -1001,8 +947,8 @@ static bool do_lint_goto(void) {
     }
 
     if (*p != ':') {
-        g_api->message("Invalid format - expected line:col");
-        g_api->free(line);
+        api.message("Invalid format - expected line:col");
+        api.free(line);
         return false;
     }
     p++;  /* Skip ':' */
@@ -1016,28 +962,28 @@ static bool do_lint_goto(void) {
         p++;
     }
 
-    g_api->free(line);
+    api.free(line);
 
     if (line_num <= 0) {
-        g_api->message("Invalid line number");
+        api.message("Invalid line number");
         return false;
     }
 
     /* Jump to the source file */
     if (g_lint_source_file[0] == '\0') {
-        g_api->message("No source file recorded");
+        api.message("No source file recorded");
         return false;
     }
 
-    if (g_api->find_file_line && g_api->find_file_line(g_lint_source_file, line_num)) {
+    if (api.find_file_line && api.find_file_line(g_lint_source_file, line_num)) {
         /* Move to column if we have set_point */
-        if (g_api->set_point && col > 0) {
-            g_api->set_point(line_num, col);
+        if (api.set_point && col > 0) {
+            api.set_point(line_num, col);
         }
-        g_api->message("%s:%d:%d", g_lint_source_file, line_num, col);
+        api.message("%s:%d:%d", g_lint_source_file, line_num, col);
         return true;
     } else {
-        g_api->message("Failed to open: %s", g_lint_source_file);
+        api.message("Failed to open: %s", g_lint_source_file);
         return false;
     }
 }
@@ -1071,14 +1017,14 @@ static bool lint_key_event_handler(uemacs_event_t *event, void *user_data) {
 
 static int cmd_lint(int f, int n) {
     (void)f; (void)n;
-    if (!g_api) return 0;
+    if (!api.current_buffer) return 0;
 
-    struct buffer *bp = g_api->current_buffer();
+    struct buffer *bp = api.current_buffer();
     if (!bp) return 0;
 
     /* Get source filename before we switch buffers */
-    const char *filename = g_api->buffer_filename(bp);
-    if (!filename) filename = g_api->buffer_name(bp);
+    const char *filename = api.buffer_filename(bp);
+    if (!filename) filename = api.buffer_name(bp);
     if (!filename) filename = "(unknown)";
 
     /* Store for navigation */
@@ -1098,26 +1044,26 @@ static int cmd_lint(int f, int n) {
     int count = bd ? bd->count : 0;
 
     if (count == 0) {
-        g_api->message("lint: No issues found");
+        api.message("lint: No issues found");
         return 1;
     }
 
     /* Create *lint* buffer */
-    struct buffer *lint_buf = g_api->buffer_create(LINT_BUFFER_NAME);
+    struct buffer *lint_buf = api.buffer_create(LINT_BUFFER_NAME);
     if (!lint_buf) {
-        g_api->message("lint: Failed to create buffer");
+        api.message("lint: Failed to create buffer");
         return 0;
     }
 
-    g_api->buffer_clear(lint_buf);
-    g_api->buffer_switch(lint_buf);
+    api.buffer_clear(lint_buf);
+    api.buffer_switch(lint_buf);
 
     /* Write header */
     char header[512];
     snprintf(header, sizeof(header), "Lint: %s (%d issue%s)\n",
              filename, count, count == 1 ? "" : "s");
-    g_api->buffer_insert(header, strlen(header));
-    g_api->buffer_insert("Press Enter on a line to jump to source\n\n", 42);
+    api.buffer_insert(header, strlen(header));
+    api.buffer_insert("Press Enter on a line to jump to source\n\n", 42);
 
     /* Write each diagnostic */
     for (int i = 0; i < bd->count; i++) {
@@ -1133,25 +1079,25 @@ static int cmd_lint(int f, int n) {
         char line[512];
         snprintf(line, sizeof(line), "%4d:%3d [%s] %s\n",
                  d->line, d->col, sev_str, d->message);
-        g_api->buffer_insert(line, strlen(line));
+        api.buffer_insert(line, strlen(line));
     }
 
     /* Position cursor on first result */
-    g_api->set_point(4, 0);
+    api.set_point(4, 0);
 
-    g_api->message("lint: %d issue%s - Enter to jump", count, count == 1 ? "" : "s");
+    api.message("lint: %d issue%s - Enter to jump", count, count == 1 ? "" : "s");
     return 1;
 }
 
 static int cmd_lint_clear(int f, int n) {
     (void)f; (void)n;
-    if (!g_api) return 0;
+    if (!api.current_buffer) return 0;
 
-    struct buffer *bp = g_api->current_buffer();
+    struct buffer *bp = api.current_buffer();
     if (!bp) return 0;
 
     clear_buffer_diags(bp);
-    g_api->message("lint: Diagnostics cleared");
+    api.message("lint: Diagnostics cleared");
 
     return 1;
 }
@@ -1160,50 +1106,80 @@ static int cmd_lint_clear(int f, int n) {
  * Extension Entry Points
  * ============================================================================ */
 
-static int lint_init(struct uemacs_api *api) {
-    g_api = api;
+static int lint_init(struct uemacs_api *editor_api) {
+    /*
+     * Use get_function() for ABI stability.
+     * This extension will work even if the API struct layout changes.
+     */
+    if (!editor_api->get_function) {
+        fprintf(stderr, "c_lint: Requires μEmacs with get_function() support\n");
+        return -1;
+    }
+
+    /* Look up all API functions by name */
+    #define LOOKUP(name) editor_api->get_function(#name)
+
+    api.on = (on_fn)LOOKUP(on);
+    api.off = (off_fn)LOOKUP(off);
+    api.register_command = (register_command_fn)LOOKUP(register_command);
+    api.unregister_command = (unregister_command_fn)LOOKUP(unregister_command);
+    api.current_buffer = (current_buffer_fn)LOOKUP(current_buffer);
+    api.buffer_contents = (buffer_contents_fn)LOOKUP(buffer_contents);
+    api.buffer_filename = (buffer_filename_fn)LOOKUP(buffer_filename);
+    api.buffer_name = (buffer_name_fn)LOOKUP(buffer_name);
+    api.buffer_insert = (buffer_insert_fn)LOOKUP(buffer_insert);
+    api.buffer_create = (buffer_create_fn)LOOKUP(buffer_create);
+    api.buffer_switch = (buffer_switch_fn)LOOKUP(buffer_switch);
+    api.buffer_clear = (buffer_clear_fn)LOOKUP(buffer_clear);
+    api.get_point = (get_point_fn)LOOKUP(get_point);
+    api.set_point = (set_point_fn)LOOKUP(set_point);
+    api.get_current_line = (get_current_line_fn)LOOKUP(get_current_line);
+    api.find_file_line = (find_file_line_fn)LOOKUP(find_file_line);
+    api.message = (message_fn)LOOKUP(message);
+    api.free = (free_fn)LOOKUP(free);
+    api.log_info = (log_fn)LOOKUP(log_info);
+    api.log_warn = (log_fn)LOOKUP(log_warn);
+    api.log_error = (log_fn)LOOKUP(log_error);
+
+    #undef LOOKUP
+
+    /* Verify critical functions were found */
+    if (!api.on || !api.register_command || !api.log_info) {
+        fprintf(stderr, "c_lint: Missing critical API functions\n");
+        return -1;
+    }
 
     /* Compile pattern rules */
     compile_pattern_rules();
 
     /* Register commands */
-    if (api->register_command) {
-        api->register_command("lint", cmd_lint);
-        api->register_command("lint-clear", cmd_lint_clear);
-    }
+    api.register_command("lint", cmd_lint);
+    api.register_command("lint-clear", cmd_lint_clear);
 
     /* Subscribe to events */
-    if (api->on) {
-        /* External diagnostic sources */
-        api->on("lsp:diagnostics", on_lsp_diagnostics, NULL, 0);
-        api->on("treesitter:parsed", on_treesitter_parsed, NULL, 0);
-        api->on("treesitter:lint", on_treesitter_lint, NULL, 0);
-        /* Key handler for Enter in *lint* buffer */
-        api->on("input:key", lint_key_event_handler, NULL, 0);
-    }
+    api.on("lsp:diagnostics", on_lsp_diagnostics, NULL, 0);
+    api.on("treesitter:parsed", on_treesitter_parsed, NULL, 0);
+    api.on("treesitter:lint", on_treesitter_lint, NULL, 0);
+    api.on("input:key", lint_key_event_handler, NULL, 0);
 
-    if (api->log_info) {
-        api->log_info("lint: Extension loaded (v3.0, buffer navigation)");
-    }
+    api.log_info("c_lint v4.0.0 loaded (ABI-stable, buffer navigation)");
 
     return 0;
 }
 
 static void lint_cleanup(void) {
-    if (g_api) {
-        /* Unregister commands */
-        if (g_api->unregister_command) {
-            g_api->unregister_command("lint");
-            g_api->unregister_command("lint-clear");
-        }
+    /* Unregister commands */
+    if (api.unregister_command) {
+        api.unregister_command("lint");
+        api.unregister_command("lint-clear");
+    }
 
-        /* Unsubscribe from events */
-        if (g_api->off) {
-            g_api->off("lsp:diagnostics", on_lsp_diagnostics);
-            g_api->off("treesitter:parsed", on_treesitter_parsed);
-            g_api->off("treesitter:lint", on_treesitter_lint);
-            g_api->off("input:key", lint_key_event_handler);
-        }
+    /* Unsubscribe from events */
+    if (api.off) {
+        api.off("lsp:diagnostics", on_lsp_diagnostics);
+        api.off("treesitter:parsed", on_treesitter_parsed);
+        api.off("treesitter:lint", on_treesitter_lint);
+        api.off("input:key", lint_key_event_handler);
     }
 
     /* Free compiled patterns */
@@ -1214,15 +1190,15 @@ static void lint_cleanup(void) {
     g_lint_source_file[0] = '\0';
 }
 
-static uemacs_extension ext = {
-    .api_version = 3,
+static struct uemacs_extension ext = {
+    .api_version = 4  /* ABI-stable API */,
     .name = "c_lint",
-    .version = "3.0.0",
+    .version = "4.0.0",
     .description = "Unified linter with buffer navigation (Enter to jump)",
     .init = lint_init,
     .cleanup = lint_cleanup,
 };
 
-uemacs_extension *uemacs_extension_entry(void) {
+struct uemacs_extension *uemacs_extension_entry(void) {
     return &ext;
 }

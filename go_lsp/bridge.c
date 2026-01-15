@@ -1,230 +1,165 @@
 /*
  * bridge.c - C/CGO Bridge for Go LSP Client Extension
  *
- * API Version: 3 (Event Bus)
+ * API Version: 4 (ABI-Stable Named Lookup)
  *
- * This bridge provides C wrappers for Go functions and mirrors the
- * μEmacs extension API struct for CGO interop.
- *
- * The API struct must exactly match include/uep/extension_api.h
+ * This bridge provides C wrappers for Go functions and uses
+ * get_function() for ABI-stable API access.
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <uep/extension_api.h>
 #include "_cgo_export.h"
 
-// Command function type
-typedef int (*cmd_fn_t)(int, int);
+/* lsp_diag_entry_t is defined in _cgo_export.h from Go's CGO preamble */
 
-// Event handler type (API v3)
+/*
+ * Minimal types needed for CGO interop.
+ */
+typedef int (*cmd_fn_t)(int, int);
 typedef bool (*event_fn_t)(void*, void*);
 
-// Lexer state (must match extension_api.h)
-typedef struct {
-    int mode;
-    int nest_depth;
-    char string_delim;
-    uint32_t state_hash;
-} lexer_state_t;
+/*
+ * Function pointer types for the API functions we use
+ */
+typedef void (*message_fn)(const char*, ...);
+typedef void (*log_fn)(const char*, ...);
+typedef void *(*current_buffer_fn)(void);
+typedef const char *(*buffer_filename_fn)(void*);
+typedef char *(*buffer_contents_fn)(void*, size_t*);
+typedef void (*get_point_fn)(int*, int*);
+typedef int (*find_file_line_fn)(const char*, int);
+typedef void *(*buffer_create_fn)(const char*);
+typedef int (*buffer_switch_fn)(void*);
+typedef int (*buffer_clear_fn)(void*);
+typedef int (*buffer_insert_fn)(const char*, size_t);
+typedef void (*free_fn)(void*);
+typedef int (*syntax_add_token_fn)(uemacs_line_tokens_t*, int, int);
+typedef void (*syntax_invalidate_buffer_fn)(struct buffer*);
+typedef bool (*emit_fn)(const char*, void*);
+typedef int (*on_fn)(const char*, event_fn_t, void*, int);
+typedef int (*off_fn)(const char*, event_fn_t);
+typedef int (*register_command_fn)(const char*, cmd_fn_t);
+typedef int (*unregister_command_fn)(const char*);
+typedef int (*syntax_register_lexer_fn)(const char*, const char**, uemacs_syntax_lex_fn, void*);
+typedef int (*syntax_unregister_lexer_fn)(const char*);
 
-// Line tokens opaque type
-typedef struct line_tokens line_tokens_t;
+/*
+ * Local API struct - only the functions we actually use
+ */
+static struct {
+    message_fn message;
+    log_fn log_info;
+    log_fn log_error;
+    current_buffer_fn current_buffer;
+    buffer_filename_fn buffer_filename;
+    buffer_contents_fn buffer_contents;
+    get_point_fn get_point;
+    find_file_line_fn find_file_line;
+    buffer_create_fn buffer_create;
+    buffer_switch_fn buffer_switch;
+    buffer_clear_fn buffer_clear;
+    buffer_insert_fn buffer_insert;
+    free_fn free;
+    syntax_add_token_fn syntax_add_token;
+    syntax_invalidate_buffer_fn syntax_invalidate_buffer;
+    emit_fn emit;
+    on_fn on;
+    off_fn off;
+    register_command_fn register_command;
+    unregister_command_fn unregister_command;
+    syntax_register_lexer_fn syntax_register_lexer;
+    syntax_unregister_lexer_fn syntax_unregister_lexer;
+} api;
 
-// Opaque types from μEmacs
-struct buffer;
-struct window;
-struct syntax_language;
+/* ============================================================================
+ * API wrappers for Go
+ * ============================================================================ */
 
-// Lexer callback signature (must match internal syntax.h API v3)
-typedef lexer_state_t (*syntax_lex_fn)(
-    const struct syntax_language *lang,
-    struct buffer *buffer,
-    int line_num,
-    const char *line,
-    int len,
-    lexer_state_t prev_state,
-    line_tokens_t *out
-);
-
-// Full API struct (must match extension_api.h v3 exactly)
-typedef struct {
-    int api_version;
-
-    // ─── Event Bus (API v3) ───────────────────────────────────────────
-    int (*on)(const char*, event_fn_t, void*, int);
-    int (*off)(const char*, event_fn_t);
-    bool (*emit)(const char*, void*);
-
-    // ─── Configuration Access ─────────────────────────────────────────
-    int (*config_int)(const char*, const char*, int);
-    bool (*config_bool)(const char*, const char*, bool);
-    const char *(*config_string)(const char*, const char*, const char*);
-
-    // ─── Command Registration ─────────────────────────────────────────
-    int (*register_command)(const char*, cmd_fn_t);
-    int (*unregister_command)(const char*);
-
-    // ─── Buffer Operations ────────────────────────────────────────────
-    void *(*current_buffer)(void);
-    void *(*find_buffer)(const char*);
-    char *(*buffer_contents)(void*, size_t*);
-    const char *(*buffer_filename)(void*);
-    const char *(*buffer_name)(void*);
-    bool (*buffer_modified)(void*);
-    int (*buffer_insert)(const char*, size_t);
-    int (*buffer_insert_at)(void*, int, int, const char*, size_t);
-    void *(*buffer_create)(const char*);
-    int (*buffer_switch)(void*);
-    int (*buffer_clear)(void*);
-
-    // ─── Cursor/Point Operations ──────────────────────────────────────
-    void (*get_point)(int*, int*);
-    void (*set_point)(int, int);
-    int (*get_line_count)(void*);
-    char *(*get_word_at_point)(void);
-    char *(*get_current_line)(void);
-
-    // ─── Window Operations ────────────────────────────────────────────
-    struct window *(*current_window)(void);
-    int (*window_count)(void);
-    int (*window_set_wrap_col)(void*, int);
-    struct window *(*window_at_row)(int);
-    int (*window_switch)(void*);
-
-    // ─── Mouse/Cursor Helpers ─────────────────────────────────────────
-    int (*screen_to_buffer_pos)(void*, int, int, int*, int*);
-    int (*set_mark)(void);
-    int (*scroll_up)(int);
-    int (*scroll_down)(int);
-
-    // ─── User Interface ───────────────────────────────────────────────
-    void (*message)(const char*, ...);
-    void (*vmessage)(const char*, void*);
-    int (*prompt)(const char*, char*, size_t);
-    int (*prompt_yn)(const char*);
-    void (*update_display)(void);
-
-    // ─── File Operations ──────────────────────────────────────────────
-    int (*find_file_line)(const char*, int);
-
-    // ─── Shell Integration ────────────────────────────────────────────
-    int (*shell_command)(const char*, char**, size_t*);
-
-    // ─── Memory Helpers ───────────────────────────────────────────────
-    void *(*alloc)(size_t);
-    void (*free)(void*);
-    char *(*strdup)(const char*);
-
-    // ─── Logging ──────────────────────────────────────────────────────
-    void (*log_info)(const char*, ...);
-    void (*log_warn)(const char*, ...);
-    void (*log_error)(const char*, ...);
-    void (*log_debug)(const char*, ...);
-
-    // ─── Syntax Highlighting ──────────────────────────────────────────
-    int (*syntax_register_lexer)(const char*, const char**, syntax_lex_fn, void*);
-    int (*syntax_unregister_lexer)(const char*);
-    int (*syntax_add_token)(line_tokens_t*, int, int);
-    void (*syntax_invalidate_buffer)(struct buffer*);
-} uemacs_api;
-
-typedef struct {
-    int api_version;
-    const char *name;
-    const char *version;
-    const char *description;
-    int (*init)(uemacs_api*);
-    void (*cleanup)(void);
-} uemacs_extension;
-
-// Global API pointer
-static uemacs_api *g_api = NULL;
-
-// API wrappers for Go
 void api_message(const char *msg) {
-    if (g_api && g_api->message) g_api->message("%s", msg);
+    if (api.message) api.message("%s", msg);
 }
 
 void api_log_info(const char *msg) {
-    if (g_api && g_api->log_info) g_api->log_info("%s", msg);
+    if (api.log_info) api.log_info("%s", msg);
 }
 
 void api_log_error(const char *msg) {
-    if (g_api && g_api->log_error) g_api->log_error("%s", msg);
+    if (api.log_error) api.log_error("%s", msg);
 }
 
 void* api_current_buffer(void) {
-    if (g_api && g_api->current_buffer) return g_api->current_buffer();
+    if (api.current_buffer) return api.current_buffer();
     return NULL;
 }
 
 const char* api_buffer_filename(void *bp) {
-    if (g_api && g_api->buffer_filename) return g_api->buffer_filename(bp);
+    if (api.buffer_filename) return api.buffer_filename(bp);
     return NULL;
 }
 
 char* api_buffer_contents(void *bp, size_t *len) {
-    if (g_api && g_api->buffer_contents) return g_api->buffer_contents(bp, len);
+    if (api.buffer_contents) return api.buffer_contents(bp, len);
     return NULL;
 }
 
 void api_get_point(int *line, int *col) {
-    if (g_api && g_api->get_point) g_api->get_point(line, col);
+    if (api.get_point) api.get_point(line, col);
 }
 
 int api_find_file_line(const char *path, int line) {
-    if (g_api && g_api->find_file_line) return g_api->find_file_line(path, line);
+    if (api.find_file_line) return api.find_file_line(path, line);
     return 0;
 }
 
 void* api_buffer_create(const char *name) {
-    if (g_api && g_api->buffer_create) return g_api->buffer_create(name);
+    if (api.buffer_create) return api.buffer_create(name);
     return NULL;
 }
 
 int api_buffer_switch(void *bp) {
-    if (g_api && g_api->buffer_switch) return g_api->buffer_switch(bp);
+    if (api.buffer_switch) return api.buffer_switch(bp);
     return 0;
 }
 
 int api_buffer_clear(void *bp) {
-    if (g_api && g_api->buffer_clear) return g_api->buffer_clear(bp);
+    if (api.buffer_clear) return api.buffer_clear(bp);
     return 0;
 }
 
 int api_buffer_insert(const char *text, size_t len) {
-    if (g_api && g_api->buffer_insert) return g_api->buffer_insert(text, len);
+    if (api.buffer_insert) return api.buffer_insert(text, len);
     return 0;
 }
 
 void api_free(void *ptr) {
-    if (g_api && g_api->free) g_api->free(ptr);
+    if (api.free) api.free(ptr);
 }
 
 int api_syntax_add_token(void *tokens, int end_col, int face) {
-    if (g_api && g_api->syntax_add_token)
-        return g_api->syntax_add_token((line_tokens_t*)tokens, end_col, face);
+    if (api.syntax_add_token)
+        return api.syntax_add_token((uemacs_line_tokens_t*)tokens, end_col, face);
     return -1;
 }
 
 void api_syntax_invalidate_buffer(void *bp) {
-    if (g_api && g_api->syntax_invalidate_buffer)
-        g_api->syntax_invalidate_buffer((struct buffer*)bp);
+    if (api.syntax_invalidate_buffer)
+        api.syntax_invalidate_buffer((struct buffer*)bp);
 }
 
 int api_emit(const char *event, void *data) {
-    if (g_api && g_api->emit) return g_api->emit(event, data);
+    if (api.emit) return api.emit(event, data);
     return 0;
 }
 
-// Emit diagnostics event - called from Go
-// Uses lsp_diag_entry_t defined in _cgo_export.h
+/* Emit diagnostics event - called from Go */
 void api_emit_diagnostics(const char *uri, lsp_diag_entry_t *diags, int count) {
-    if (!g_api || !g_api->emit) return;
+    if (!api.emit) return;
 
-    // Create event structure on stack
     struct {
         const char *uri;
         lsp_diag_entry_t *diags;
@@ -234,32 +169,32 @@ void api_emit_diagnostics(const char *uri, lsp_diag_entry_t *diags, int count) {
         .diags = diags,
         .count = count
     };
-    g_api->emit("lsp:diagnostics", &event);
+    api.emit("lsp:diagnostics", &event);
 }
 
-// Lexer callback wrapper - calls Go function
-// Signature matches internal syntax_lex_fn (API v3)
-static lexer_state_t lsp_lexer_callback(
+/* Lexer callback wrapper - calls Go function */
+static uemacs_lexer_state_t lsp_lexer_callback(
     const struct syntax_language *lang,
     struct buffer *buffer,
     int line_num,
     const char *line,
     int len,
-    lexer_state_t prev_state,
-    line_tokens_t *out
+    uemacs_lexer_state_t prev_state,
+    uemacs_line_tokens_t *out
 ) {
-    (void)lang;  // We use global g_api
+    (void)lang;
     (void)prev_state;
 
-    // Call Go function (pass NULL for user_data - LSP doesn't need it)
     go_lsp_lex_line(NULL, buffer, line_num, (char*)line, len, out);
 
-    // Return empty state (LSP doesn't use state machine)
-    lexer_state_t result = {0, 0, 0, 0};
+    uemacs_lexer_state_t result = {0, 0, 0, 0};
     return result;
 }
 
-// Command wrappers
+/* ============================================================================
+ * Command wrappers
+ * ============================================================================ */
+
 static int cmd_lsp_start(int f, int n) { return go_lsp_start(f, n); }
 static int cmd_lsp_stop(int f, int n) { return go_lsp_stop(f, n); }
 static int cmd_lsp_hover(int f, int n) { return go_lsp_hover(f, n); }
@@ -274,24 +209,22 @@ static int cmd_lsp_workspace_symbols(int f, int n) { return go_lsp_workspace_sym
 static int cmd_lsp_did_save(int f, int n) { return go_lsp_did_save(f, n); }
 static int cmd_lsp_did_close(int f, int n) { return go_lsp_did_close(f, n); }
 
-// Event handlers for automatic didSave/didClose
+/* Event handlers for automatic didSave/didClose */
 static bool on_buffer_saved(void *buffer, void *user_data) {
     (void)user_data;
     (void)buffer;
-    // Call the Go function to notify LSP server
     go_lsp_did_save(0, 1);
-    return true; // Continue propagation
+    return true;
 }
 
 static bool on_buffer_closed(void *buffer, void *user_data) {
     (void)user_data;
     (void)buffer;
-    // Call the Go function to notify LSP server
     go_lsp_did_close(0, 1);
-    return true; // Continue propagation
+    return true;
 }
 
-// Language patterns for lexer registration
+/* Language patterns for lexer registration */
 static const char *py_patterns[] = {"*.py", NULL};
 static const char *go_patterns[] = {"*.go", NULL};
 static const char *rs_patterns[] = {"*.rs", NULL};
@@ -299,85 +232,135 @@ static const char *c_patterns[] = {"*.c", "*.h", "*.cpp", "*.hpp", NULL};
 static const char *js_patterns[] = {"*.js", "*.ts", NULL};
 static const char *zig_patterns[] = {"*.zig", NULL};
 
-static int lsp_init_c(uemacs_api *api) {
-    g_api = api;
+/* ============================================================================
+ * Extension lifecycle
+ * ============================================================================ */
 
-    // Register commands
-    if (g_api->register_command) {
-        g_api->register_command("lsp-start", cmd_lsp_start);
-        g_api->register_command("lsp-stop", cmd_lsp_stop);
-        g_api->register_command("lsp-hover", cmd_lsp_hover);
-        g_api->register_command("lsp-definition", cmd_lsp_definition);
-        g_api->register_command("lsp-references", cmd_lsp_references);
-        g_api->register_command("lsp-refresh-tokens", cmd_lsp_refresh_tokens);
-        g_api->register_command("lsp-completion", cmd_lsp_completion);
-        g_api->register_command("lsp-diagnostics", cmd_lsp_diagnostics);
-        g_api->register_command("lsp-code-action", cmd_lsp_code_action);
-        g_api->register_command("lsp-document-symbols", cmd_lsp_document_symbols);
-        g_api->register_command("lsp-workspace-symbols", cmd_lsp_workspace_symbols);
+typedef struct {
+    int api_version;
+    const char *name;
+    const char *version;
+    const char *description;
+    int (*init)(void*);
+    void (*cleanup)(void);
+} uemacs_extension;
+
+static int lsp_init_c(void *editor_api_raw) {
+    struct uemacs_api *editor_api = (struct uemacs_api *)editor_api_raw;
+
+    /*
+     * Use get_function() for ABI stability.
+     */
+    if (!editor_api->get_function) {
+        fprintf(stderr, "go_lsp: Requires μEmacs with get_function() support\n");
+        return -1;
     }
 
-    // Register as lexer for supported languages
-    // These will override built-in lexers when LSP provides semantic tokens
-    if (g_api->syntax_register_lexer) {
-        g_api->syntax_register_lexer("lsp-python", py_patterns, lsp_lexer_callback, NULL);
-        g_api->syntax_register_lexer("lsp-go", go_patterns, lsp_lexer_callback, NULL);
-        g_api->syntax_register_lexer("lsp-rust", rs_patterns, lsp_lexer_callback, NULL);
-        g_api->syntax_register_lexer("lsp-c", c_patterns, lsp_lexer_callback, NULL);
-        g_api->syntax_register_lexer("lsp-js", js_patterns, lsp_lexer_callback, NULL);
-        g_api->syntax_register_lexer("lsp-zig", zig_patterns, lsp_lexer_callback, NULL);
+    /* Look up all API functions by name */
+    #define LOOKUP(name) editor_api->get_function(#name)
+
+    api.message = (message_fn)LOOKUP(message);
+    api.log_info = (log_fn)LOOKUP(log_info);
+    api.log_error = (log_fn)LOOKUP(log_error);
+    api.current_buffer = (current_buffer_fn)LOOKUP(current_buffer);
+    api.buffer_filename = (buffer_filename_fn)LOOKUP(buffer_filename);
+    api.buffer_contents = (buffer_contents_fn)LOOKUP(buffer_contents);
+    api.get_point = (get_point_fn)LOOKUP(get_point);
+    api.find_file_line = (find_file_line_fn)LOOKUP(find_file_line);
+    api.buffer_create = (buffer_create_fn)LOOKUP(buffer_create);
+    api.buffer_switch = (buffer_switch_fn)LOOKUP(buffer_switch);
+    api.buffer_clear = (buffer_clear_fn)LOOKUP(buffer_clear);
+    api.buffer_insert = (buffer_insert_fn)LOOKUP(buffer_insert);
+    api.free = (free_fn)LOOKUP(free);
+    api.syntax_add_token = (syntax_add_token_fn)LOOKUP(syntax_add_token);
+    api.syntax_invalidate_buffer = (syntax_invalidate_buffer_fn)LOOKUP(syntax_invalidate_buffer);
+    api.emit = (emit_fn)LOOKUP(emit);
+    api.on = (on_fn)LOOKUP(on);
+    api.off = (off_fn)LOOKUP(off);
+    api.register_command = (register_command_fn)LOOKUP(register_command);
+    api.unregister_command = (unregister_command_fn)LOOKUP(unregister_command);
+    api.syntax_register_lexer = (syntax_register_lexer_fn)LOOKUP(syntax_register_lexer);
+    api.syntax_unregister_lexer = (syntax_unregister_lexer_fn)LOOKUP(syntax_unregister_lexer);
+
+    #undef LOOKUP
+
+    /* Verify critical functions were found */
+    if (!api.register_command || !api.log_info) {
+        fprintf(stderr, "go_lsp: Missing critical API functions\n");
+        return -1;
     }
 
-    // Register event handlers for automatic didSave/didClose
-    if (g_api->on) {
-        g_api->on("buffer:saved", on_buffer_saved, NULL, 0);
-        g_api->on("buffer:closed", on_buffer_closed, NULL, 0);
+    /* Register commands */
+    api.register_command("lsp-start", cmd_lsp_start);
+    api.register_command("lsp-stop", cmd_lsp_stop);
+    api.register_command("lsp-hover", cmd_lsp_hover);
+    api.register_command("lsp-definition", cmd_lsp_definition);
+    api.register_command("lsp-references", cmd_lsp_references);
+    api.register_command("lsp-refresh-tokens", cmd_lsp_refresh_tokens);
+    api.register_command("lsp-completion", cmd_lsp_completion);
+    api.register_command("lsp-diagnostics", cmd_lsp_diagnostics);
+    api.register_command("lsp-code-action", cmd_lsp_code_action);
+    api.register_command("lsp-document-symbols", cmd_lsp_document_symbols);
+    api.register_command("lsp-workspace-symbols", cmd_lsp_workspace_symbols);
+
+    /* Register as lexer for supported languages */
+    if (api.syntax_register_lexer) {
+        api.syntax_register_lexer("lsp-python", py_patterns, lsp_lexer_callback, NULL);
+        api.syntax_register_lexer("lsp-go", go_patterns, lsp_lexer_callback, NULL);
+        api.syntax_register_lexer("lsp-rust", rs_patterns, lsp_lexer_callback, NULL);
+        api.syntax_register_lexer("lsp-c", c_patterns, lsp_lexer_callback, NULL);
+        api.syntax_register_lexer("lsp-js", js_patterns, lsp_lexer_callback, NULL);
+        api.syntax_register_lexer("lsp-zig", zig_patterns, lsp_lexer_callback, NULL);
     }
 
-    api_log_info("lsp_client: Go extension loaded (v4.0, lock-free concurrent)");
+    /* Register event handlers for automatic didSave/didClose */
+    if (api.on) {
+        api.on("buffer:saved", on_buffer_saved, NULL, 0);
+        api.on("buffer:closed", on_buffer_closed, NULL, 0);
+    }
+
+    api.log_info("lsp_client: Go extension loaded (v5.0, ABI-stable)");
     return 0;
 }
 
 static void lsp_cleanup_c(void) {
-    if (g_api) {
-        // Unregister commands
-        if (g_api->unregister_command) {
-            g_api->unregister_command("lsp-start");
-            g_api->unregister_command("lsp-stop");
-            g_api->unregister_command("lsp-hover");
-            g_api->unregister_command("lsp-definition");
-            g_api->unregister_command("lsp-references");
-            g_api->unregister_command("lsp-refresh-tokens");
-            g_api->unregister_command("lsp-completion");
-            g_api->unregister_command("lsp-diagnostics");
-            g_api->unregister_command("lsp-code-action");
-            g_api->unregister_command("lsp-document-symbols");
-            g_api->unregister_command("lsp-workspace-symbols");
-        }
+    /* Unregister commands */
+    if (api.unregister_command) {
+        api.unregister_command("lsp-start");
+        api.unregister_command("lsp-stop");
+        api.unregister_command("lsp-hover");
+        api.unregister_command("lsp-definition");
+        api.unregister_command("lsp-references");
+        api.unregister_command("lsp-refresh-tokens");
+        api.unregister_command("lsp-completion");
+        api.unregister_command("lsp-diagnostics");
+        api.unregister_command("lsp-code-action");
+        api.unregister_command("lsp-document-symbols");
+        api.unregister_command("lsp-workspace-symbols");
+    }
 
-        // Unregister lexers
-        if (g_api->syntax_unregister_lexer) {
-            g_api->syntax_unregister_lexer("lsp-python");
-            g_api->syntax_unregister_lexer("lsp-go");
-            g_api->syntax_unregister_lexer("lsp-rust");
-            g_api->syntax_unregister_lexer("lsp-c");
-            g_api->syntax_unregister_lexer("lsp-js");
-            g_api->syntax_unregister_lexer("lsp-zig");
-        }
+    /* Unregister lexers */
+    if (api.syntax_unregister_lexer) {
+        api.syntax_unregister_lexer("lsp-python");
+        api.syntax_unregister_lexer("lsp-go");
+        api.syntax_unregister_lexer("lsp-rust");
+        api.syntax_unregister_lexer("lsp-c");
+        api.syntax_unregister_lexer("lsp-js");
+        api.syntax_unregister_lexer("lsp-zig");
+    }
 
-        // Unregister event handlers
-        if (g_api->off) {
-            g_api->off("buffer:saved", on_buffer_saved);
-            g_api->off("buffer:closed", on_buffer_closed);
-        }
+    /* Unregister event handlers */
+    if (api.off) {
+        api.off("buffer:saved", on_buffer_saved);
+        api.off("buffer:closed", on_buffer_closed);
     }
 }
 
 static uemacs_extension ext = {
-    .api_version = 3,  /* Event bus API */
+    .api_version = 4,
     .name = "go_lsp",
-    .version = "4.0.0",  /* v4: Lock-free concurrency, full LSP feature set */
-    .description = "LSP client with semantic tokens (Go, lock-free concurrent)",
+    .version = "5.0.0",
+    .description = "LSP client with semantic tokens (Go, ABI-stable)",
     .init = lsp_init_c,
     .cleanup = lsp_cleanup_c,
 };

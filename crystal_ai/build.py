@@ -24,7 +24,6 @@ def run(cmd: list[str], desc: str) -> int:
 
 def build() -> int:
     here = Path(__file__).parent.resolve()
-    bridge_obj = here / "bridge.o"
 
     # 1. Compile bridge.c to object file
     if run(["gcc"] + CFLAGS + ["-c", "-o", "bridge.o", "bridge.c"],
@@ -32,11 +31,10 @@ def build() -> int:
         return 1
 
     # 2. Build Crystal with bridge object linked in
-    # --link-flags passes flags to the linker
-    # Crystal will follow require "./agent" to include agent.cr
+    # Quote the path to handle spaces in directory names
+    bridge_obj = str(here / "bridge.o")
     if run(["crystal", "build", "--release", "--no-debug",
-            "--link-flags=-shared",
-            f"--link-flags={bridge_obj}",
+            f"--link-flags=-shared '{bridge_obj}'",
             "-o", TARGET, "ai_completion.cr"],
            "Building Crystal shared library") != 0:
         return 1
