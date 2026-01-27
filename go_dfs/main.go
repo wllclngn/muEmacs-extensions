@@ -90,7 +90,7 @@ func (r *TraversalResult) AddError(err string) {
 	r.mu.Unlock()
 }
 
-// ConcurrentFind performs parallel file search
+// ConcurrentFind performs parallel file search using work-stealing DFS
 func ConcurrentFind(root string, pattern *regexp.Regexp, maxWorkers int) *TraversalResult {
 	result := &TraversalResult{matches: make([]string, 0, 100)}
 
@@ -98,90 +98,26 @@ func ConcurrentFind(root string, pattern *regexp.Regexp, maxWorkers int) *Traver
 		maxWorkers = runtime.NumCPU()
 	}
 
-	// Work channel and wait group
-	type workItem struct {
-		path  string
-		depth int
+	// Use work-stealing file traversal
+	opts := DefaultFileOptions(maxWorkers)
+
+	// Custom match function for the pattern
+	opts.Match = func(path string, isDir bool) bool {
+		return pattern.MatchString(filepath.Base(path))
 	}
 
-	workCh := make(chan workItem, maxWorkers*16)
-	var wg sync.WaitGroup
+	// Use default prune (skips .git, node_modules, etc.)
+	opts.Prune = DefaultPrune
 
-	// Spawn workers
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Run work-stealing traversal
+	ctx := context.Background()
+	ftResult := FileTraverse(ctx, root, opts, pattern)
 
-	for i := 0; i < maxWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case item, ok := <-workCh:
-					if !ok {
-						return
-					}
-					// Check if name matches pattern
-					name := filepath.Base(item.path)
-					if pattern.MatchString(name) {
-						result.AddMatch(item.path)
-					}
+	// Convert to TraversalResult format
+	result.matches = ftResult.Matches
+	result.count = int64(len(ftResult.Matches))
+	result.errors = ftResult.Errors
 
-					// If directory, enumerate children
-					info, err := os.Stat(item.path)
-					if err != nil {
-						continue
-					}
-					if info.IsDir() && item.depth < 20 { // Max depth limit
-						entries, err := os.ReadDir(item.path)
-						if err != nil {
-							result.AddError(fmt.Sprintf("%s: %v", item.path, err))
-							continue
-						}
-						for _, entry := range entries {
-							// Skip hidden and common ignore patterns
-							name := entry.Name()
-							if name[0] == '.' || name == "node_modules" || name == "__pycache__" || name == "target" {
-								continue
-							}
-							childPath := filepath.Join(item.path, name)
-							select {
-							case workCh <- workItem{path: childPath, depth: item.depth + 1}:
-							default:
-								// Channel full, process inline
-								if pattern.MatchString(name) {
-									result.AddMatch(childPath)
-								}
-							}
-						}
-					}
-				}
-			}
-		}()
-	}
-
-	// Seed with root
-	workCh <- workItem{path: root, depth: 0}
-
-	// Wait for a bit then close
-	time.Sleep(10 * time.Millisecond)
-	go func() {
-		// Check periodically if work is done
-		for {
-			time.Sleep(50 * time.Millisecond)
-			if len(workCh) == 0 {
-				time.Sleep(100 * time.Millisecond)
-				if len(workCh) == 0 {
-					close(workCh)
-					return
-				}
-			}
-		}
-	}()
-
-	wg.Wait()
 	return result
 }
 
@@ -420,6 +356,225 @@ func go_dfs_count(f, n C.int) C.int {
 	elapsed := time.Since(start)
 
 	msg := C.CString(fmt.Sprintf("Counted %d files in %s (%v)", result.count, root, elapsed))
+	C.api_message(msg)
+	C.free(unsafe.Pointer(msg))
+
+	return 1
+}
+
+// ============================================================================
+// Visual Tree Command - ASCII tree output like Linux `tree`
+// ============================================================================
+
+// DirEntry represents a file or directory in the tree
+type DirEntry struct {
+	Name     string
+	Path     string
+	IsDir    bool
+	Children []*DirEntry
+}
+
+// BuildTree constructs a directory tree using concurrent traversal
+func BuildTree(root string, maxDepth int) (*DirEntry, int, int) {
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		return nil, 0, 0
+	}
+
+	rootEntry := &DirEntry{
+		Name:  filepath.Base(root),
+		Path:  root,
+		IsDir: rootInfo.IsDir(),
+	}
+
+	if !rootInfo.IsDir() {
+		return rootEntry, 0, 1
+	}
+
+	var dirCount, fileCount int
+	var mu sync.Mutex
+
+	// Use a semaphore for controlled parallelism
+	sem := make(chan struct{}, runtime.NumCPU()*2)
+	var wg sync.WaitGroup
+
+	var buildRecursive func(entry *DirEntry, depth int)
+	buildRecursive = func(entry *DirEntry, depth int) {
+		defer wg.Done()
+
+		if depth >= maxDepth {
+			return
+		}
+
+		entries, err := os.ReadDir(entry.Path)
+		if err != nil {
+			return
+		}
+
+		// Sort: directories first, then files, both alphabetically
+		var dirs, files []os.DirEntry
+		for _, e := range entries {
+			name := e.Name()
+			// Skip hidden files and common ignore patterns
+			if name[0] == '.' || name == "node_modules" || name == "__pycache__" || name == "target" || name == "vendor" {
+				continue
+			}
+			if e.IsDir() {
+				dirs = append(dirs, e)
+			} else {
+				files = append(files, e)
+			}
+		}
+
+		// Build children list
+		children := make([]*DirEntry, 0, len(dirs)+len(files))
+
+		// Process directories first
+		for _, d := range dirs {
+			child := &DirEntry{
+				Name:  d.Name(),
+				Path:  filepath.Join(entry.Path, d.Name()),
+				IsDir: true,
+			}
+			children = append(children, child)
+
+			mu.Lock()
+			dirCount++
+			mu.Unlock()
+
+			wg.Add(1)
+			select {
+			case sem <- struct{}{}:
+				go func(c *DirEntry) {
+					defer func() { <-sem }()
+					buildRecursive(c, depth+1)
+				}(child)
+			default:
+				// Semaphore full, process synchronously
+				buildRecursive(child, depth+1)
+			}
+		}
+
+		// Then files
+		for _, f := range files {
+			child := &DirEntry{
+				Name:  f.Name(),
+				Path:  filepath.Join(entry.Path, f.Name()),
+				IsDir: false,
+			}
+			children = append(children, child)
+
+			mu.Lock()
+			fileCount++
+			mu.Unlock()
+		}
+
+		entry.Children = children
+	}
+
+	wg.Add(1)
+	buildRecursive(rootEntry, 0)
+	wg.Wait()
+
+	return rootEntry, dirCount, fileCount
+}
+
+// RenderTree renders the tree with ASCII art
+func RenderTree(entry *DirEntry, prefix string, isLast bool, isRoot bool) string {
+	var sb strings.Builder
+
+	if isRoot {
+		sb.WriteString(entry.Name)
+		if entry.IsDir {
+			sb.WriteString("/")
+		}
+		sb.WriteString("\n")
+	} else {
+		if isLast {
+			sb.WriteString(prefix + "└── " + entry.Name)
+		} else {
+			sb.WriteString(prefix + "├── " + entry.Name)
+		}
+		if entry.IsDir {
+			sb.WriteString("/")
+		}
+		sb.WriteString("\n")
+	}
+
+	if entry.Children != nil {
+		childPrefix := prefix
+		if !isRoot {
+			if isLast {
+				childPrefix += "    "
+			} else {
+				childPrefix += "│   "
+			}
+		}
+
+		for i, child := range entry.Children {
+			isLastChild := i == len(entry.Children)-1
+			sb.WriteString(RenderTree(child, childPrefix, isLastChild, false))
+		}
+	}
+
+	return sb.String()
+}
+
+//export go_dfs_tree
+func go_dfs_tree(f, n C.int) C.int {
+	bp := C.api_current_buffer()
+	var root string
+	if bp != nil {
+		fname := C.GoString(C.api_buffer_filename(bp))
+		if fname != "" {
+			root = filepath.Dir(fname)
+		}
+	}
+	if root == "" {
+		root, _ = os.Getwd()
+	}
+
+	// Default max depth is 4, or use numeric argument
+	maxDepth := 4
+	if int(n) > 0 && int(n) < 100 {
+		maxDepth = int(n)
+	}
+
+	// Build tree concurrently
+	start := time.Now()
+	tree, dirCount, fileCount := BuildTree(root, maxDepth)
+	elapsed := time.Since(start)
+
+	if tree == nil {
+		msg := C.CString("Failed to read directory")
+		C.api_message(msg)
+		C.free(unsafe.Pointer(msg))
+		return 0
+	}
+
+	// Render tree
+	rendered := RenderTree(tree, "", true, true)
+
+	// Add summary
+	summary := fmt.Sprintf("\n%d directories, %d files (traversed in %v)\n", dirCount, fileCount, elapsed)
+	rendered += summary
+
+	// Create results buffer
+	resultBuf := C.api_buffer_create(C.CString("*dfs-tree*"))
+	if resultBuf == nil {
+		return 0
+	}
+	C.api_buffer_switch(resultBuf)
+	C.api_buffer_clear(resultBuf)
+
+	coutput := C.CString(rendered)
+	C.api_buffer_insert(coutput, C.size_t(len(rendered)))
+	C.free(unsafe.Pointer(coutput))
+
+	C.api_set_point(1, 1)
+	C.api_update_display()
+
+	msg := C.CString(fmt.Sprintf("Tree: %d dirs, %d files (%v)", dirCount, fileCount, elapsed))
 	C.api_message(msg)
 	C.free(unsafe.Pointer(msg))
 

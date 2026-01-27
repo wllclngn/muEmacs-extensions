@@ -89,11 +89,11 @@ pub const GenericFn = *const fn () callconv(cc) void;
 pub const GetFunctionFn = *const fn ([*:0]const u8) callconv(cc) ?GenericFn;
 
 // Minimal API struct - only what's needed for get_function access
-// Padding calculated: api_version(4) + pad(4) + 58 pointers(464) = 472 bytes before struct_size
+// Padding calculated: api_version(4) + pad(4) + 59 pointers(472) = 480 bytes before struct_size
 pub const UemacsApi = extern struct {
     api_version: c_int,
     _pad: c_int,
-    _ptrs: [58]*const anyopaque,  // Padding for 58 function pointers
+    _ptrs: [59]*const anyopaque,  // Padding for 59 function pointers
     struct_size: usize,
     get_function: ?GetFunctionFn,
 };

@@ -1,6 +1,6 @@
 # haskell_project
 
-Project management extension for uEmacs.
+Project management extension for μEmacs.
 
 ## Language
 

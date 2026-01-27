@@ -1,19 +1,6 @@
-# UEP Extensions
+# μEmacs Extensions
 
 μEmacs Extension Platform (UEP) native extensions directory.
-
-## Architecture
-
-### In-Process (dlopen)
-Direct `.so` loading via `dlopen()`. Lower overhead, full memory access.
-- **Languages**: C, Rust, Zig
-- **ASan compatible**: Yes
-
-### Out-of-Process (Atomic IPC)
-Separate process with lock-free IPC via atomic ring buffers and shared memory.
-- **Languages**: Go, Ada, Haskell, Crystal, Pascal
-- **IPC**: 16-slot ring buffers (64KB/slot), memfd shared memory
-- **Benefits**: Process isolation, runtime independence, no deadlocks
 
 ## Naming Convention
 
@@ -24,47 +11,60 @@ Extensions follow the `language_tool` naming pattern:
 
 ## Installed Extensions
 
-| Extension | Language | Type | Commands | Description |
-|-----------|----------|------|----------|-------------|
-| `ada_fuzzy` | Ada | Out-of-Process | 2 | Fuzzy file finder |
-| `c_git` | C/Fortran | In-Process | 12 | Git integration |
-| `c_lint` | C | In-Process | 2 | Unified linter |
-| `c_minibuffer` | C | In-Process | - | Enhanced minibuffer |
-| `c_mouse` | C | In-Process | 3 | Mouse support |
-| `c_org` | C | In-Process | - | Org-mode support |
-| `c_write_edit` | C | In-Process | 1 | Prose editing mode |
-| `crystal_ai` | Crystal | Out-of-Process | 8 | AI code assistance |
-| `go_dfs` | Go | Out-of-Process | 3 | Directory tree |
-| `go_lsp` | Go | Out-of-Process | 11 | LSP client |
-| `go_sam` | Go | Out-of-Process | 7 | Structural editing |
-| `go_sudoku` | Go | Out-of-Process | 5 | Sudoku game |
-| `haskell_calc` | Haskell | Out-of-Process | - | Calculator |
-| `haskell_project` | Haskell | Out-of-Process | 3 | Project management |
-| `pascal_multicursor` | Pascal | Out-of-Process | 4 | Multiple cursors |
-| `rust_re2` | Rust | In-Process | - | RE2 regex engine |
-| `zig_treesitter` | Zig | In-Process | - | Tree-sitter syntax |
+| Extension | Language | Type | Description |
+|-----------|----------|------|-------------|
+| `ada_fuzzy` | Ada | Out-of-Process | Fuzzy file finder |
+| `c_git` | C | In-Process | Git integration |
+| `c_lint` | C | In-Process | Unified linter |
+| `c_linus` | C | In-Process | Linus Torvalds uEmacs compatibility |
+| `c_minibuffer` | C | In-Process | Modern completion framework |
+| `c_mouse` | C | In-Process | Mouse support |
+| `c_org` | C | In-Process | Org-mode outlining |
+| `c_write_edit` | C | In-Process | Prose editing mode |
+| `crystal_ai` | Crystal | Out-of-Process | AI code assistance |
+| `go_chess` | Go | Out-of-Process | Chess engine with learning |
+| `go_dfs` | Go | Out-of-Process | Concurrent DFS file traversal |
+| `go_lsp` | Go | Out-of-Process | Language Server Protocol client |
+| `go_sam` | Go | Out-of-Process | Structural regular expressions (sam) |
+| `go_sudoku` | Go | Out-of-Process | Sudoku game |
+| `haskell_calc` | Haskell | Out-of-Process | Scientific calculator |
+| `haskell_project` | Haskell | Out-of-Process | Project management |
+| `pascal_multicursor` | Pascal | Out-of-Process | Multiple cursors |
+| `rust_re2` | Rust | In-Process | RE2-style regex search (ripgrep) |
+| `zig_treesitter` | Zig | In-Process | Tree-sitter syntax highlighting |
+
+## Extension Types
+
+### In-Process (dlopen)
+Direct `.so` loading via `dlopen()`. Lower overhead, full memory access.
+- **Languages**: C, Rust, Zig
+
+### Out-of-Process (IPC)
+Separate process with bidirectional IPC via memfd/eventfd.
+- **Languages**: Go, Ada, Haskell, Crystal, Pascal
+- **Benefits**: Process isolation, crash recovery, language flexibility
 
 ## Command Reference
 
 ### ada_fuzzy
 | Command | Description |
 |---------|-------------|
-| `fuzzy-find` | Fuzzy file finder |
-| `fuzzy-buffer` | Fuzzy buffer switcher |
+| `fuzzy-find` | Fuzzy match files in current directory |
+| `fuzzy-grep` | Search file contents with fuzzy matching |
 
-### c_git (Fortran core)
+### c_git
 | Command | Description |
 |---------|-------------|
-| `git-status` | Show git status |
-| `git-status-full` | Full status with diff |
+| `git-status` | Show repository status (short) |
+| `git-status-full` | Show full status in buffer |
 | `git-stage` | Stage current file |
 | `git-unstage` | Unstage current file |
-| `git-commit` | Commit staged changes |
-| `git-diff` | Show unstaged changes |
-| `git-log` | Show commit history |
+| `git-commit` | Commit staged changes (prompts for message) |
+| `git-diff` | Show diff of current file |
+| `git-log` | Show commit history (use C-u N for N commits) |
 | `git-pull` | Pull from remote |
 | `git-push` | Push to remote |
-| `git-branch` | Show/switch branches |
+| `git-branch` | Show current branch |
 | `git-stash` | Stash changes |
 | `git-stash-pop` | Pop stashed changes |
 
@@ -74,12 +74,34 @@ Extensions follow the `language_tool` naming pattern:
 | `lint` | Run linter on buffer |
 | `lint-clear` | Clear diagnostics |
 
+### c_linus
+| Command | Description |
+|---------|-------------|
+| `linus-mode` | Toggle Linus Torvalds uEmacs compatibility mode |
+
+Enables classic modeline format, VTIME-based bracket flash, and disables modern visual features.
+
+### c_minibuffer
+| Command | Description |
+|---------|-------------|
+| `switch-buffer` | Buffer picker with live filtering (shadows built-in) |
+| `pick-cancel` | Cancel current pick operation |
+
 ### c_mouse
 | Command | Description |
 |---------|-------------|
 | `mouse-enable` | Enable mouse support |
 | `mouse-disable` | Disable mouse support |
 | `mouse-status` | Show mouse state |
+
+### c_org
+| Command | Description |
+|---------|-------------|
+| `org-mode` | Toggle org-mode for current buffer |
+| `org-tab` | Fold/unfold headline at cursor (TAB) |
+| `org-cycle-global` | Cycle global visibility (Shift-TAB) |
+| `org-todo` | Cycle TODO state (TODO -> DONE -> none) |
+| `org-checkbox` | Toggle checkbox at cursor |
 
 ### c_write_edit
 | Command | Description |
@@ -98,47 +120,68 @@ Extensions follow the `language_tool` naming pattern:
 | `ai-explain` | Explain code at cursor |
 | `ai-fix` | Suggest fix for code |
 
+### go_chess
+| Command | Description |
+|---------|-------------|
+| `chess` | Start new game (Human=White, AI=Black) |
+| `chess-move` | Make a move (e.g., "e2e4", "e7e8q" for promotion) |
+| `chess-undo` | Undo last move pair |
+| `chess-depth` | Set search depth (default: 6) |
+| `chess-eval` | Show current position evaluation |
+| `chess-hint` | Get AI suggestion for human |
+| `chess-flip` | Flip board orientation |
+| `chess-fen` | Show current FEN position |
+| `chess-auto` | AI vs AI mode (runs until game ends) |
+| `chess-workers` | Set worker count (default: 2) |
+| `chess-stop` | Stop AI vs AI game |
+
 ### go_dfs
 | Command | Description |
 |---------|-------------|
-| `dfs-tree` | Show directory tree |
-| `dfs-find` | Find files by pattern |
-| `dfs-goto` | Navigate to file |
+| `dfs-find` | Find files matching pattern (concurrent) |
+| `dfs-grep` | Search file contents concurrently |
+| `dfs-count` | Count files/directories concurrently |
 
 ### go_lsp
 | Command | Description |
 |---------|-------------|
-| `lsp-start` | Start language server |
-| `lsp-stop` | Stop language server |
-| `lsp-restart` | Restart language server |
-| `lsp-goto-def` | Go to definition |
-| `lsp-find-refs` | Find references |
-| `lsp-hover` | Show hover info |
-| `lsp-rename` | Rename symbol |
-| `lsp-format` | Format buffer |
-| `lsp-actions` | Show code actions |
+| `lsp-start` | Start LSP server for current file type |
+| `lsp-stop` | Stop the LSP server |
+| `lsp-hover` | Show hover info at cursor |
+| `lsp-definition` | Jump to definition |
+| `lsp-references` | Find all references |
+| `lsp-refresh-tokens` | Refresh semantic token highlighting |
+| `lsp-completion` | Trigger code completion |
 | `lsp-diagnostics` | Show diagnostics |
-| `lsp-symbols` | Show document symbols |
+| `lsp-code-action` | Show code actions |
+| `lsp-document-symbols` | List document symbols |
+| `lsp-workspace-symbols` | Search workspace symbols |
 
 ### go_sam
 | Command | Description |
 |---------|-------------|
-| `sam-x` | Execute sam command |
-| `sam-edit` | Edit with sam expression |
-| `sam-print` | Print matching text |
-| `sam-substitute` | Substitute pattern |
-| `sam-delete` | Delete matching text |
-| `sam-insert` | Insert text |
-| `sam-append` | Append text |
+| `sam` | Execute sam structural regex command |
+
+Supports Rob Pike's sam commands: `x/pattern/cmd`, `y/pattern/cmd`, `g/pattern/cmd`, `v/pattern/cmd`.
 
 ### go_sudoku
 | Command | Description |
 |---------|-------------|
-| `sudoku-new` | Start new puzzle |
-| `sudoku-check` | Check solution |
-| `sudoku-hint` | Get hint |
-| `sudoku-solve` | Auto-solve puzzle |
-| `sudoku-reset` | Reset puzzle |
+| `sudoku-new` | Start a new puzzle |
+| `sudoku-check` | Check for errors |
+| `sudoku-hint` | Reveal one cell |
+| `sudoku-solve` | Show the solution |
+| `sudoku-reset` | Reset to original puzzle |
+
+### haskell_calc
+| Command | Description |
+|---------|-------------|
+| `calc` | Open calculator REPL in *calc* buffer |
+| `calc-hex` | Format last result as hexadecimal |
+| `calc-bin` | Format last result as binary |
+| `calc-oct` | Format last result as octal |
+
+SpeedCrunch-style calculator with variables, history, and scientific functions.
 
 ### haskell_project
 | Command | Description |
@@ -150,36 +193,24 @@ Extensions follow the `language_tool` naming pattern:
 ### pascal_multicursor
 | Command | Description |
 |---------|-------------|
-| `mc-add` | Add cursor at point |
-| `mc-add-next` | Add cursor at next match |
-| `mc-add-all` | Add cursors at all matches |
+| `mc-add` | Add cursor at current position |
 | `mc-clear` | Clear all cursors |
+| `mc-next` | Jump to next cursor position |
+| `mc-insert` | Insert marker at all cursor positions |
 
-## Out-of-Process IPC
+### rust_re2
+| Command | Description |
+|---------|-------------|
+| `re2` | RE2-style regex search |
+| `re2-word` | Search word at cursor |
+| `re2-case` | Toggle case insensitive mode |
+| `re2-smart` | Toggle smart case mode |
+| `re2-word-boundary` | Toggle whole word matching |
+| `re2-hidden` | Toggle hidden file inclusion |
+| `re2-gitignore` | Toggle .gitignore respect |
 
-Extensions in Go, Ada, Haskell, Crystal, and Pascal run in separate processes
-communicating via atomic ring buffers in shared memory.
-
-### Architecture
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    SHARED MEMORY (memfd)                        │
-├─────────────────────────────────────────────────────────────────┤
-│  Header: magic, version, ext_ready (atomic), shutdown (atomic)  │
-│                                                                 │
-│  [Editor → Extension Ring]  16 slots × 64KB                     │
-│    _Atomic state: EMPTY(0) / PENDING(1) / COMPLETE(2)           │
-│    msg_type, payload_len, result, payload[65504]                │
-│                                                                 │
-│  [Extension → Editor Ring]  16 slots × 64KB                     │
-│    Same structure                                               │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Message Flow
-- **Command invocation**: Editor writes to `to_ext` ring, extension spins for PENDING
-- **API calls**: Extension writes to `to_editor` ring, editor polls in main loop
-- **No blocking**: Editor polls non-blocking; extensions spin-wait (acceptable for dedicated process)
+### zig_treesitter
+Automatic - activates on supported file types (.c, .h, .py, .rs, .sh, .js).
 
 ## Configuration
 
@@ -197,9 +228,13 @@ auto_status = true
 soft_wrap_col = 80
 smart_typography = true
 
-[extension.c_minibuffer]
-max_candidates = 15
-modified_indicator = "Δ"
+[extension.rust_re2]
+case_insensitive = false
+smart_case = true
+word_boundary = false
+hidden = false
+git_ignore = true
+threads = 0              # 0 = auto-detect CPU cores
 
 [extension.go_lsp]
 enabled = true
@@ -207,59 +242,40 @@ enabled = true
 
 ## Building Extensions
 
-Extensions are auto-built by `uep_build.py` with API version injection:
+Each extension has its own build system:
 
 ```sh
-# Manual build (if needed)
-cd ~/.config/muemacs/extensions/language_tool
-python3 /path/to/uemacs/scripts/uep_build.py .
+# C extensions
+cd extension_name && make
 
-# Or use extension-specific build
-make
+# Rust extensions
+cargo build --release && cp target/release/lib*.so ./extension_name.so
+
+# Zig extensions
+zig build -Doptimize=ReleaseFast && cp zig-out/lib/*.so ./extension_name.so
+
+# Out-of-process extensions (Go, Ada, Haskell, Crystal, Pascal)
+make  # Builds bridge.c and language-specific components
 ```
-
-### API Version Injection
-The build system automatically injects the current API version:
-- **C/C++**: `-DUEMACS_API_VERSION_BUILD=4`
-- **Rust**: `UEMACS_API_VERSION` env var
-- **Zig**: `-Dapi_version=4`
-- **Go**: `CGO_CFLAGS` with version define
 
 ## Adding Extensions
 
 1. Create directory: `~/.config/muemacs/extensions/language_tool/`
 2. Implement extension with `uemacs_extension` struct
-3. Use `UEMACS_API_VERSION_BUILD` macro for API version
-4. Build shared object: `language_tool.so`
-5. Restart μEmacs (auto-loads from extensions directory)
-
-### Bridge Pattern (Out-of-Process)
-For non-C languages, use a C bridge that calls into the native runtime:
-```
-bridge.c (C) ←→ language_tool.so (native)
-    ↓
-uemacs-ext-runner (loads .so, proxies API via IPC)
-    ↓
-Editor (polls for messages)
-```
+3. Build shared object: `language_tool.so`
+4. Add config section: `[extension.language_tool]` in settings.toml
+5. Restart μEmacs or use `M-x extension-load`
 
 ## API Version
 
 Current API version: **4** (ABI-Stable Named Lookup)
 
-Extensions use build-time version injection:
+Extensions declare their API version in the `uemacs_extension` struct:
 ```c
 static struct uemacs_extension ext = {
-    .api_version = UEMACS_API_VERSION_BUILD,
     .name = "language_tool",
     .version = "1.0.0",
-    .init = my_init,
-    .cleanup = my_cleanup,
+    .api_version = 4,
+    ...
 };
 ```
-
-### API v4 Features
-- `get_function()` for ABI-stable function lookup by name
-- Atomic ring buffer IPC (no eventfd blocking)
-- Auto-build with version injection
-- Full buffer/prompt API for out-of-process extensions

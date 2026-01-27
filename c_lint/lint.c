@@ -572,7 +572,7 @@ static pattern_rule_t pattern_rules[] = {
      "goto statement found", "c,h,cpp,hpp", {0}, false},
     {"infinite-loop", "while[ \t]*(1)", LINT_INFO,
      "Infinite loop - ensure exit condition exists", "c,h,cpp,hpp", {0}, false},
-    {"c-cast", "([a-z_][a-z_0-9]*[ ]*\\**)[ ]*[a-z_]", LINT_HINT,
+    {"c-cast", "\\([a-zA-Z_][a-zA-Z0-9_ ]*\\*?\\)[a-zA-Z_]", LINT_HINT,
      "C-style cast - consider static_cast in C++", "cpp,hpp", {0}, false},
 
     /* Sentinel */

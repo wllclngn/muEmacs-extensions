@@ -111,6 +111,7 @@ extern void dfs_init(void* api);
 extern int go_dfs_find(int f, int n);
 extern int go_dfs_grep(int f, int n);
 extern int go_dfs_count(int f, int n);
+extern int go_dfs_tree(int f, int n);
 
 #ifdef __cplusplus
 }

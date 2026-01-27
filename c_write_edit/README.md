@@ -1,6 +1,6 @@
 # c_write_edit
 
-Prose editing mode for uEmacs with Word-like features.
+Prose editing mode for μEmacs with Word-like features.
 
 ## Language
 

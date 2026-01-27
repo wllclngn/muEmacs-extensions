@@ -1,6 +1,6 @@
 # go_lsp
 
-Language Server Protocol client for uEmacs.
+Language Server Protocol client for μEmacs.
 
 ## Language
 

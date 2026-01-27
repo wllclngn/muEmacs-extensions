@@ -146,6 +146,7 @@ int api_find_file_line(const char *path, int line) {
 static int cmd_dfs_find(int f, int n) { return go_dfs_find(f, n); }
 static int cmd_dfs_grep(int f, int n) { return go_dfs_grep(f, n); }
 static int cmd_dfs_count(int f, int n) { return go_dfs_count(f, n); }
+static int cmd_dfs_tree(int f, int n) { return go_dfs_tree(f, n); }
 
 /* ============================================================================
  * Extension lifecycle
@@ -209,6 +210,7 @@ static int dfs_init_c(void *editor_api_raw) {
     api.register_command("dfs-find", cmd_dfs_find);
     api.register_command("dfs-grep", cmd_dfs_grep);
     api.register_command("dfs-count", cmd_dfs_count);
+    api.register_command("dfs-tree", cmd_dfs_tree);
 
     api.log_info("go_dfs: Concurrent DFS extension loaded (work-stealing traversal)");
     return 0;
@@ -219,6 +221,7 @@ static void dfs_cleanup_c(void) {
         api.unregister_command("dfs-find");
         api.unregister_command("dfs-grep");
         api.unregister_command("dfs-count");
+        api.unregister_command("dfs-tree");
     }
 }
 
@@ -229,7 +232,7 @@ static void dfs_cleanup_c(void) {
 static uemacs_extension ext = {
     .api_version = 4,
     .name = "go_dfs",
-    .version = "2.0.0",
+    .version = "3.0.0",
     .description = "Concurrent DFS file traversal (work-stealing)",
     .init = dfs_init_c,
     .cleanup = dfs_cleanup_c,

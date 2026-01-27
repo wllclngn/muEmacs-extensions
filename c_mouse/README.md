@@ -1,6 +1,6 @@
 # c_mouse
 
-Comprehensive mouse support extension for uEmacs.
+Comprehensive mouse support extension for μEmacs.
 
 ## Language
 

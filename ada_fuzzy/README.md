@@ -1,6 +1,6 @@
 # ada_fuzzy
 
-Fuzzy file finder and grep extension for uEmacs.
+Fuzzy file finder and grep extension for μEmacs.
 
 ## Language
 

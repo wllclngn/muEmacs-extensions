@@ -1,6 +1,6 @@
 # zig_treesitter
 
-Tree-sitter syntax highlighting extension for uEmacs.
+Tree-sitter syntax highlighting extension for μEmacs.
 
 ## Language
 

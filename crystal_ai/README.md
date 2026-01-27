@@ -1,6 +1,6 @@
 # crystal_ai
 
-AI-powered code assistance extension for uEmacs, using Claude CLI agents.
+AI-powered code assistance extension for μEmacs, using Claude CLI agents.
 
 ## Language
 

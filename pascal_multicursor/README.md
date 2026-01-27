@@ -1,6 +1,6 @@
 # pascal_multicursor
 
-Multiple cursor editing extension for uEmacs.
+Multiple cursor editing extension for μEmacs.
 
 ## Language
 

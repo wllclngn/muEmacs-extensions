@@ -1,6 +1,6 @@
 # c_git
 
-Git integration extension for uEmacs.
+Git integration extension for μEmacs.
 
 ## Language
 

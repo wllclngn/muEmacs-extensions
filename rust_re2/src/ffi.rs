@@ -45,9 +45,9 @@ pub struct UemacsApi {
     /// Padding to account for alignment
     _pad: c_int,
 
-    /// 58 function pointers (on/off/emit through buffer_next)
+    /// 59 function pointers (on/off/emit through modeline_refresh)
     /// We don't use these directly - they're just padding to reach get_function
-    _ptrs: [*const c_void; 58],
+    _ptrs: [*const c_void; 59],
 
     /// Struct size for version detection (second-to-last field)
     pub struct_size: usize,

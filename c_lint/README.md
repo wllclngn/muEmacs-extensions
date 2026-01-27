@@ -1,6 +1,6 @@
 # c_lint
 
-Unified linter extension for uEmacs aggregating diagnostics from multiple sources.
+Unified linter extension for μEmacs aggregating diagnostics from multiple sources.
 
 ## Language
 
